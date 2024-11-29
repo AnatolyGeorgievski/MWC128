@@ -66,8 +66,8 @@ int write_png(char *file_name, png_byte* image, int width, int height)
    }
 	png_init_io(png_ptr, fp);
 
-int bit_depth = 8;
-const int bytes_per_pixel = 1;
+int bit_depth = 16;
+const int bytes_per_pixel = 2;
 	png_set_IHDR  (png_ptr, info_ptr, width, height, bit_depth,
        PNG_COLOR_TYPE_GRAY, PNG_INTERLACE_NONE,
        PNG_COMPRESSION_TYPE_BASE, PNG_FILTER_TYPE_BASE);
@@ -95,35 +95,39 @@ uint32_t mwc32x( uint32_t* state, const uint32_t A)
 static inline float u64_float(uint64_t x) {
 	return ((uint32_t)((x>>32) ^ (x&0xFFFFFFFFU)) >> 8) * 0x1.0p-24;
 }
-float uniform (uint32_t *state, uint32_t A1) {
-	return (mwc32x(state, A1)&0xFFFFFFU)*0x1.0p-24;
+double uniform (uint32_t *state, uint32_t A1) {
+	return ((mwc32x(state, A1))&0xFFFFFFU)*0x1.0p-24;
 }
 int main(int argc, char *argv[]){
 
 	int width = 1024;
 	int height= 1024;
 	// 0xFE94, 0xFEA0;//0xFE30;
-	const uint32_t A1 =0xFEE4;
+	const uint32_t A1 =0xFE94;//0xFF00;//0xFFA8;//0xFEE4;
 
 	if (argc<2) return 1;
 	char *file_name = argv[1];
 
-	png_byte *image = malloc(width*height);
-	memset (image, 0, width*height);
+	uint16_t *image = malloc(width*height*2);
+	memset (image, 0, width*height*2);
 
-	uint32_t s = 1;
+	uint32_t s = 0xFFFF;
 	uint32_t MASK = (width*height -1);
-	for (uint64_t i=0; i<=0x7FFFFFF; i++){
-		uint32_t x = uniform(&s, A1)*width;
-		uint32_t y = uniform(&s, A1)*height;
+	for (uint64_t i=0; i<=0x7FFFFFFFF; i++){
+		//uint32_t y = uniform(&s, A1)*width;
+		//uint32_t x = uniform(&s, A1)*height;
+		uint32_t v = mwc32x(&s, A1);
+		uint32_t x = (v>>10)&0x3FF;
+		uint32_t y = v&0x3FF;
+		
 		//if (v<width*height) 
-		uint8_t col = image[x + y*width];
+		uint16_t col = __builtin_bswap16(image[x + y*width]);
 		col += 1;
-		if (col<1) col = 255;
-		image[x + y*width] = col;
+		if (col<1) col = (1<<16)-1;
+		image[x + y*width] = __builtin_bswap16(col);
 	}
 
 	
-	write_png(file_name, image, width, height);
+	write_png(file_name, (uint8_t*)image, width, height);
 	return 0;
 }
