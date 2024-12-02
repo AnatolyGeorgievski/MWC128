@@ -52,3 +52,36 @@ $(x+cb)A  = xA + c(Ab-1) + c = xA + c(Ab-1) + c, \bmod (Ab - 1)$
 ![тест на однородность заполнения](0xFE94.png)
 
 "Безопасным простым" является P=fe9fffff (A=FEA0) с периодом повтора 0x7f4ffffe
+
+Ниже привожу таблицу всех простых чисел $P= (A<<16)-1$ c максимальным периодом повтора.
+```
+A=FFEA i=7ff4fffe ( 21), P mod 24 =23, A mod 3 =0
+A=FFD7 i=7feb7ffe ( 40), P mod 24 = 7, A mod 3 =2
+A=FFBD i=7fde7ffe ( 66), P mod 24 =23, A mod 3 =0
+A=FFA8 i=7fd3fffe ( 87), P mod 24 =23, A mod 3 =0
+A=FF9B i=7fcd7ffe (100), P mod 24 = 7, A mod 3 =2
+A=FF81 i=7fc07ffe (126), P mod 24 =23, A mod 3 =0
+A=FF80 i=7fbffffe (127), P mod 24 = 7, A mod 3 =2
+A=FF7B i=7fbd7ffe (132), P mod 24 =23, A mod 3 =0
+A=FF75 i=7fba7ffe (138), P mod 24 =23, A mod 3 =0
+A=FF48 i=7fa3fffe (183), P mod 24 =23, A mod 3 =0
+A=FF3F i=7f9f7ffe (192), P mod 24 =23, A mod 3 =0
+A=FF3C i=7f9dfffe (195), P mod 24 =23, A mod 3 =0
+A=FF2C i=7f95fffe (211), P mod 24 = 7, A mod 3 =2
+A=FF09 i=7f847ffe (246), P mod 24 =23, A mod 3 =0
+A=FF03 i=7f817ffe (252), P mod 24 =23, A mod 3 =0
+A=FF00 i=7f7ffffe (255), P mod 24 =23, A mod 3 =0
+A=FEEB i=7f757ffe (276), P mod 24 =23, A mod 3 =0
+A=FEE4 i=7f71fffe (283), P mod 24 = 7, A mod 3 =2
+A=FEA8 i=7f53fffe (343), P mod 24 = 7, A mod 3 =2
+A=FEA5 i=7f527ffe (346), P mod 24 = 7, A mod 3 =2
+A=FEA0 i=7f4ffffe (351), P mod 24 =23, A mod 3 =0
+A=FE94 i=7f49fffe (363), P mod 24 =23, A mod 3 =0
+A=FE8B i=7f457ffe (372), P mod 24 =23, A mod 3 =0
+A=FE72 i=7f38fffe (397), P mod 24 = 7, A mod 3 =2
+A=FE4E i=7f26fffe (433), P mod 24 = 7, A mod 3 =2
+A=FE30 i=7f17fffe (463), P mod 24 = 7, A mod 3 =2
+A=FE22 i=7f10fffe (477), P mod 24 =23, A mod 3 =0
+A=FE15 i=7f0a7ffe (490), P mod 24 = 7, A mod 3 =2
+A=FE04 i=7f01fffe (507), P mod 24 =23, A mod 3 =0
+```
