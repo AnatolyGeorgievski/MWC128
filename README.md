@@ -69,6 +69,25 @@ fffe1702,fffe161b,fffe151c,fffe1495,fffe123d,fffe10f3,fffe1054,fffe0f01,
 * Все тесты 1,2,3,4 - вероятностные, мог пропустить составное число
 
 * Алгоритм генерации таблицы прстых чисел и проверка простоты по таблцие см. [prime.c](prime.c)
+
+Алгоритм возведения в сепень для теста Ферма, 64-битыне числа:
+```c
+typedef unsigned int __attribute__((mode(TI)))   uint128_t;
+static uint32_t powm(const uint64_t b, uint64_t a, const uint64_t P)
+{
+    uint64_t r;
+    r = b;
+    uint64_t s = 1;
+    int i;
+    while (a!=0) {
+	if (a&1) 
+		s = ((uint128_t)s*r)%P;
+	r = ((uint128_t)r*r)%P;
+	a>>=1;
+    }
+    return s;
+}
+```
   
 ## MWC32
 
