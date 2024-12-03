@@ -73,7 +73,7 @@ fffe1702,fffe161b,fffe151c,fffe1495,fffe123d,fffe10f3,fffe1054,fffe0f01,
 Алгоритм возведения в сепень для теста Ферма, 64-битыне числа:
 ```c
 typedef unsigned int __attribute__((mode(TI)))   uint128_t;
-static uint32_t powm(const uint64_t b, uint64_t a, const uint64_t P)
+static uint64_t powm(const uint64_t b, uint64_t a, const uint64_t P)
 {
     uint64_t r;
     r = b;
