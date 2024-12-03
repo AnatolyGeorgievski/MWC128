@@ -15,14 +15,14 @@ int main(int argc, char* argv[]){
 	uint32_t a = 3;
 	int i=0;
 	prime[i++] = 2;
-	for(; i<MAX_SIZE;a+=2){
+	for(; i<MAX_SIZE;a+=2){// генерация таблицы
 		if (is_prime(a, i)) { 
 			prime[i++] = a;
 			//if (a> 0xFF00) printf("%04X,", a);
 			if (a>=0x7FFFF) break;
 		}
 	}
-
+// тестирование
 	if (is_prime(5778,i)) printf("prime =%d\n",5778);
 	uint32_t A[] = {
 		0x10000,0xFFEA, 0xFFD7, 0xFFBD, 
@@ -39,16 +39,5 @@ int main(int argc, char* argv[]){
 		if (is_prime(a,i)) printf("%2d: prime =%08x\n",k,a);
 		if (is_prime((A[k]<<15)-1,i)) printf("..ok\n");
 	}
-if (0){
-	printf("Lucas_V(4,1, k)=\n"); 
-	int Q = 1, P=4;
-	uint32_t zu = 2, u = P;
-	for(int i=2;i<0xFEA0; i++){
-		uint32_t y = P*u - Q*zu;
-		zu = u; u = y;
-		printf("%d,",y);
-	}
-	printf("\n");
-}
 	return 0;
 }
