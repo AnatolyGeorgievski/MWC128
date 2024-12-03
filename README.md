@@ -38,6 +38,15 @@ $(x+cb)A  = xA + c(Ab-1) + c = xA + c(Ab-1) + c, \bmod (Ab - 1)$
 
 Алгоритм разработан благодяря онлайн публикации [MWC64x](https://cas.ee.ic.ac.uk/people/dt10/research/rngs-gpu-mwc64x.html). К алгоритму приписал модульную арифметику с вычислением отступов для многопотокового вычисления. 
 
+Генератор последовательности:
+```c
+uint64_t next( uint64_t* state, const uint64_t A)
+{
+    uint32_t x = *state;
+    *state = A*(uint32_t)(x) + (x>>32);
+    return x;
+}
+```
 Таблица констант A для преобразования из диапазона 0xFFFF-0x1FFFF:
 ```
 fffefd4e,fffefaa5,fffefa9c,fffef86b,fffef712,fffef592,fffef370,fffef0e2,
