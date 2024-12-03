@@ -37,6 +37,32 @@ $(x+cb)A  = xA + c(Ab-1) + c = xA + c(Ab-1) + c, \bmod (Ab - 1)$
 ## MWC64x
 
 Алгоритм разработан благодяря онлайн публикации [MWC64x](https://cas.ee.ic.ac.uk/people/dt10/research/rngs-gpu-mwc64x.html). К алгоритму приписал модульную арифметику с вычислением отступов для многопотокового вычисления. 
+Таблица констант A для преобразования из диапазона 0xFFFF-0x1FFFF:
+```
+fffefd4e,fffefaa5,fffefa9c,fffef86b,fffef712,fffef592,fffef370,fffef0e2,
+fffef0d6,fffeed07,fffeea1f,fffee9ad,fffee7d0,fffee7b2,fffee749,fffee500,
+fffee4e8,fffee42b,fffee2f3,fffee2b4,fffedf2a,fffede76,fffedb10,fffed89a,
+fffed885,fffed5b2,fffed462,fffed3ae,fffed024,fffed01b,fffecd60,fffecc43,
+fffecbc5,fffeca90,fffec8b9,fffec7ff,fffec658,fffec39a,fffec289,fffebfd7,
+fffebef9,fffebaeb,fffeb81b,fffeb6f8,fffeb512,fffeb37a,fffeb2b1,fffeaf24,
+fffeaced,fffea942,fffea759,fffea405,fffea2f7,fffea2b2,fffea23a,fffe9e7a,
+fffe9e65,fffe9c91,fffe9c8b,fffe9988,fffe9835,fffe982c,fffe981d,fffe9736,
+fffe96dc,fffe9664,fffe953e,fffe944e,fffe9442,fffe930d,fffe915a,fffe9001,
+fffe8e66,fffe8d37,fffe8c9b,fffe8c92,fffe8665,fffe863e,fffe83aa,fffe8224,
+fffe81f1,fffe8173,fffe80ad,fffe7fa2,fffe7a2c,fffe7594,fffe7369,fffe700c,
+fffe6fee,fffe6feb,fffe695b,fffe6946,fffe636a,fffe6337,fffe60af,fffe5c02,
+fffe5bd5,fffe5a0a,fffe59bf,fffe59b0,fffe59a7,fffe53e3,fffe51fd,fffe4fcf,
+fffe4d86,fffe4d0e,fffe49d5,fffe4858,fffe477d,fffe44fb,fffe4456,fffe42fd,
+fffe412c,fffe4048,fffe3b6e,fffe3a33,fffe39b2,fffe398b,fffe358f,fffe31b4,
+fffe30ac,fffe2a76,fffe29b9,fffe2305,fffe1d0b,fffe1c03,fffe1b3a,fffe1720,
+fffe1702,fffe161b,fffe151c,fffe1495,fffe123d,fffe10f3,fffe1054,fffe0f01,
+```
+Для поиска значений использовались тесты:
+1. $X^{(p/2-1)}=1$ хотя для $X=2$ или $X=3$.
+2. $p$ - простое число, проверка по таблице
+3. $p/2-1$ - простое число, по табулице
+4. Делимость $p mod 24 = 23$, $a mod 3 = 0$
+5. $\bar(a)-1$ - простое число
 
 ## MWC32
 
