@@ -22,14 +22,3 @@ uint32_t gcd(uint32_t u, uint32_t v) {
     }
 	return v << k;
 }
-
-
-
-int main(){
-	printf("=%d\n", gcd(25,15));
-	printf("=%d\n", gcd(13,39));
-	printf("=%d\n", gcd(12,36));
-	printf("=%d\n", gcd(36,2));
-	printf("=%d\n", gcd(36,37));
-	return 0;
-}
