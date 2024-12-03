@@ -44,7 +44,7 @@ $(x+cb)A  = xA + c(Ab-1) + c = xA + c(Ab-1) + c, \bmod (Ab - 1)$
 ```c
 uint64_t next( uint64_t* state, const uint64_t A)
 {
-    uint32_t x = *state;
+    uint64_t x = *state;
     *state = A*(uint32_t)(x) + (x>>32);
     return x;
 }
