@@ -82,15 +82,13 @@ fffe1b3a,fffe1702,fffe1495,fffe0f01,fffe03e2,fffe03c4,fffe00f4,
 typedef unsigned int __attribute__((mode(TI)))   uint128_t;
 static uint64_t powm(const uint64_t b, uint64_t a, const uint64_t P)
 {
-    uint64_t r;
-    r = b;
+    uint64_t r = b;
     uint64_t s = 1;
-    int i;
     while (a!=0) {
-	if (a&1) 
-		s = ((uint128_t)s*r)%P;
-	r = ((uint128_t)r*r)%P;
-	a>>=1;
+		if (a&1) 
+			s = ((uint128_t)s*r)%P;
+		r = ((uint128_t)r*r)%P;
+		a>>=1;
     }
     return s;
 }
