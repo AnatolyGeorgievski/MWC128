@@ -101,6 +101,15 @@ static uint64_t powm(const uint64_t b, uint64_t a, const uint64_t P)
 Тестом на простоту Ферма является утверждение $x^{p-1} = 1$ для любого x.
 Для чисел вида $A\cdot 2^{n} -1$ тестом простоты является LLR([Тест Люка — Лемера — Ризеля](https://en.wikipedia.org/wiki/Lucas%E2%80%93Lehmer%E2%80%93Riesel_test)), as a special case of the Morrison test. Реализация теста,см. проект [PRST by Pavel Atnashev](https://github.com/patnashev/prst)
 
+Тесты LLR рассматривают два случая для поиска начального значения $u_0$:
+1. когда $P ≡  7 (\bmod 24)$ последовательнрост Люка (Lucas) $V_k(4,1)$. 
+2. когда $P ≡ 23 (\bmod 24)$ с подбором такого p: `jacobi(p-2, n)=+1` and `jacobi(p+2, n)=-1` 
+для последовательности Люка $V_k(p,1)$
+
+* [1] "Optimized Computation of the Jacobi Symbol" Jonas Lindstrøm & Kostas Kryptos Chalkias 
+	<https://eprint.iacr.org/2024/1054>
+* [2] "A simpler alternative to Lucas–Lehmer–Riesel primality test" Pavel Atnashev
+  	<https://eprint.iacr.org/2023/195>
 
 ## MWC32
 
