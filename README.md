@@ -107,7 +107,7 @@ static uint64_t powm(const uint64_t b, uint64_t a, const uint64_t P)
 2. когда $P ≡ 23 (\bmod 24)$ с подбором такого p: `jacobi(p-2, n)=+1` and `jacobi(p+2, n)=-1` 
 для последовательности Люка $V_k(p,1)$
 
-Для поиска начального значения последовательности используется [Символ Якоби](https://en.wikipedia.org/wiki/Jacobi_symbol).
+Для поиска начального значения последовательности используется [Символ Якоби](https://en.wikipedia.org/wiki/Jacobi_symbol). Реализация алгоритма [1] см. [jacobi.c](jacobi.c)
 
 * [1] "Optimized Computation of the Jacobi Symbol" Jonas Lindstrøm & Kostas Kryptos Chalkias 
 	<https://eprint.iacr.org/2024/1054>
@@ -118,6 +118,18 @@ static uint64_t powm(const uint64_t b, uint64_t a, const uint64_t P)
   	<https://eprint.iacr.org/2023/195>
 
 > В этой статье рассматривается применение теста Моррисона на простоту к числам вида $k \cdot 2^n-1$ и находится простая общая формула, эквивалентная тесту Люка — Лемера и тесту  Люка — Лемера — Ризеля на простоту.
+
+
+```math
+V_{2^{n-2}}(V_k(P_R, Q_R)) \equiv 0 (\bmod{N}), \quad Q_R = 1, \left(\frac{P_R-2}{N}\right)=1, \quad \left(\frac{P_R+2}{N}\right)=-1
+```
+Тест Люка–Лемера–Ризеля примет вид
+$$V_{2^{n-2}}(V_k(V_2)) = V_{k\cdot 2^{n-1}} = V_{(N+1)/2} \equiv (\bmod{N})$$
+где
+$$V_2 = P^2-2Q = P_R$$
+
+Тест дается реккурентной формулой последовательности Люка, с начальными значениями $P$ и $Q=-1$.
+
 
 ## MWC32
 
