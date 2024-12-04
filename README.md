@@ -99,17 +99,25 @@ static uint64_t powm(const uint64_t b, uint64_t a, const uint64_t P)
 Тест вероятностный, выделяет огромное множество констант. 
 
 Тестом на простоту Ферма является утверждение $x^{p-1} = 1$ для любого x.
-Для чисел вида $A\cdot 2^{n} -1$ тестом простоты является LLR([Тест Люка — Лемера — Ризеля](https://en.wikipedia.org/wiki/Lucas%E2%80%93Lehmer%E2%80%93Riesel_test)), as a special case of the Morrison test. Реализация теста,см. проект [PRST by Pavel Atnashev](https://github.com/patnashev/prst)
+Для чисел вида $A\cdot 2^{n} -1$ тестом простоты является LLR([Тест Люка — Лемера — Ризеля](https://en.wikipedia.org/wiki/Lucas%E2%80%93Lehmer%E2%80%93Riesel_test)), как специальный случай теста Моррисона. 
+Реализация теста,см. проект [PRST by Pavel Atnashev](https://github.com/patnashev/prst)
 
 Тесты LLR рассматривают два случая для поиска начального значения $u_0$:
 1. когда $P ≡  7 (\bmod 24)$ последовательнрост Люка (Lucas) $V_k(4,1)$. 
 2. когда $P ≡ 23 (\bmod 24)$ с подбором такого p: `jacobi(p-2, n)=+1` and `jacobi(p+2, n)=-1` 
 для последовательности Люка $V_k(p,1)$
 
+Для поиска начального значения последовательности используется [Символ Якоби](https://en.wikipedia.org/wiki/Jacobi_symbol).
+
 * [1] "Optimized Computation of the Jacobi Symbol" Jonas Lindstrøm & Kostas Kryptos Chalkias 
 	<https://eprint.iacr.org/2024/1054>
+
+> Символ Якоби является важным примитивом в криптографических приложениях, таких как проверка простоты, факторизация целых чисел.
+
 * [2] "A simpler alternative to Lucas–Lehmer–Riesel primality test" Pavel Atnashev
   	<https://eprint.iacr.org/2023/195>
+
+> В этой статье рассматривается применение теста Моррисона на простоту к числам вида $k \cdot 2^n-1$ и находится простая общая формула, эквивалентная тесту Люка — Лемера и тесту  Люка — Лемера — Ризеля на простоту.
 
 ## MWC32
 
