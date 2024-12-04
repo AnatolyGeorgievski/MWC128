@@ -230,7 +230,7 @@ U = floor({2^2L}/A) == floor((2^2L - A*2^L)/A) + 2^L
 	}
 #if defined(MWC_P_INVL)
 	q = ((rc*(uint128_t)MWC_P_INVL)>>64) + rc;// число 2^63 < P_INV < 2^64, сташий бит = 1<<64, INVL - малдшая часть числа
-#elif defined(MWC_A1)
+#elif 1//defined(MWC_A1) -- этот вариант рабочий
 	uint128_t q2  = ((uint128_t)rc<<64) | r[MP_SIZE-1];
 	q = q2/(P[MP_SIZE-1]+1); 
 	/* делением тоже можно получить, но длинное деление эмулируется!
@@ -238,7 +238,7 @@ U = floor({2^2L}/A) == floor((2^2L - A*2^L)/A) + 2^L
 	Но вызывает функцию __udivti3, не всегда компилится в инструкцию DIV
 	\see https://github.com/gcc-mirror/gcc/blob/master/libgcc/udivmodsi4.c
 	*/
-#else
+#else // этот вариант не годится если разрядность P меньше 64
 	q = ((rc*(uint128_t)INVL(P[MP_SIZE-1]+1))>>64) + rc;
 #endif
 	int64_t cy = rc - mp_mul_ui(x, P, q);// Магия на основе редуцирования Баррета R = A - q*P

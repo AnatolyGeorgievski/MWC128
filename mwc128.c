@@ -3,6 +3,9 @@
 https://en.wikipedia.org/wiki/Multiply-with-carry_pseudorandom_number_generator
 
 	$ gcc -DTEST_MWC128 -O3 -march=native -o test mwc128.c
+	
+	
+ [2] Blackman, David; Vigna, Sebastiano (2018). "Scrambled Linear Pseudorandom Generators". arXiv:1805.01407 [cs.DS].
  */
 #include <stdint.h>
 #define MP_SIZE 2
@@ -10,9 +13,10 @@ https://en.wikipedia.org/wiki/Multiply-with-carry_pseudorandom_number_generator
 #define MWC_P_INVL  0x00144a7e03c11fcd // замена деления на умножение и сдвиг
 
 #include "mp.c" // шаблон класса для заданной размерности MP_SIZE
-
-//#define MWC_A1 0xff3a275c007b8ee6 // MWC128 - другой вариант, см википедию
-
+#if 0
+#define MWC_A1 		0xff3a275c007b8ee6 // MWC128 - другой вариант, см википедию
+#define MWC_P_INVL	0x00c67201aa1e6b56 // INVL(A1+1)
+#endif
 /* Модуль M1 = A1*B1-1 
 	выполняется тождество A1 = B1^{-1} mod M1 B1 - обратное число для A1
  */
@@ -180,10 +184,12 @@ uint64_t state[2] = {12345,1};
 	printf("jump(96) = {0x%016llx, 0x%016llx};\n", s[0], s[1]);
 	
 	s[0] = MWC_A1, s[1]=0;
-	q[0] = -3, q[1] = MWC_A1-1;// обратное число расчитвается, как a^{p-2} = a^{-1}, a^{p-1} = 1
-	mp_powm(s,s,q, P);
-	printf("inv(P-2) = {0x%016llx, 0x%016llx}; -- %s\n", s[0], s[1], (s[0]==0 && s[1]==1)?"ok":"fail"); // должно давать число B=(1<<64)
-
+	q[0] = -1-2, q[1] = MWC_A1-1;// обратное число расчитвается, как a^{p-2} = a^{-1}, a^{p-1} = 1
+	uint64_t v[2];
+	mp_powm(v,s,q, P);
+	printf("inv(P-2) = {0x%016llx, 0x%016llx}; -- %s\n", v[0], v[1], (v[0]==0 && v[1]==1)?"ok":"fail"); // должно давать число B=(1<<64)
+	mp_mulm(v, s, v, P);
+	printf("a*b mod P= {0x%016llx, 0x%016llx};\n", v[0], v[1]);
 	s[0] = MWC_A1, s[1]=-35;
 	mp_reduction(s, 0);
 	printf("fold(1) = {0x%016llx, 0x%016llx};\n", s[0], s[1]);
