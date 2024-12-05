@@ -213,7 +213,7 @@ uint32_t next( uint32_t* state, const uint32_t A)
     return x;
 }
 ```
-Ниже привожу таблицу всех простых чисел $P= (A<<16)-1$ c максимальным периодом повтора.
+Ниже привожу таблицу простых чисел $P= A \cdot 2^{16} -1$ c максимальным периодом повтора.
 ```
 A=FFEA i=7ff4fffe ( 21), P mod 24 =23, A mod 3 =0
 A=FFD7 i=7feb7ffe ( 40), P mod 24 = 7, A mod 3 =2
@@ -245,3 +245,4 @@ A=FE22 i=7f10fffe (477), P mod 24 =23, A mod 3 =0
 A=FE15 i=7f0a7ffe (490), P mod 24 = 7, A mod 3 =2
 A=FE04 i=7f01fffe (507), P mod 24 =23, A mod 3 =0
 ```
+Все числа из таблицы проходят [тест LLR](mwc32_llr.c).
