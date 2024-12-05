@@ -142,7 +142,7 @@ $x^2 \equiv a (\bmod{N})$, где $n$ — квадратичный вычет п
 
 Подробнее см. [Алгори́тм Тоне́лли — Ше́нкса](https://en.wikipedia.org/wiki/Tonelli%E2%80%93Shanks_algorithm)
 
-Для поиска начального значения последовательности используется [Символ Якоби](https://en.wikipedia.org/wiki/Jacobi_symbol). Реализация алгоритма [1] см. [jacobi.c](jacobi.c)
+Для поиска начального значения $P$ используется [Символ Якоби](https://en.wikipedia.org/wiki/Jacobi_symbol). Реализация алгоритма [1] см. [jacobi.c](jacobi.c)
 
 * [1] "Optimized Computation of the Jacobi Symbol" Jonas Lindstrøm & Kostas Kryptos Chalkias 
 	<https://eprint.iacr.org/2024/1054>
@@ -185,7 +185,7 @@ int llr_k(uint32_t P, uint32_t k)
 	return (v==0);
 }
 ```
-В расчете используются: модульное умножение `mulm`, возведение в квадрат `sqrm`, сложение по модулю `addm`и модульное вычитание `subm`. 
+В расчете используются: модульное умножение `mulm`, возведение в квадрат `sqrm`, и модульное вычитание `subm`. 
 
 ## MWC32
 
