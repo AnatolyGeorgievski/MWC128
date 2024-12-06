@@ -19,7 +19,12 @@ float uniform (uint64_t *state) {
 
 ## Преобразование Box-Muller
 
-The standard Box–Muller transform generates values from the standard normal distribution (i.e. standard normal deviates) with mean 0 and standard deviation 1.
+> The standard Box–Muller transform generates values from the standard normal distribution (i.e. standard normal deviates) with mean 0 and standard deviation 1.
+
+Пусть $r$ и $\varphi$ — независимые случайные величины, равномерно распределённые на интервале $(0, 1]$. Вычислим $z_{0}$ и $z_{1}$ по формулам
+$$z_{0}=\cos(2\pi \varphi )\sqrt {-2\ln r}~,$$
+$$z_{1}=\sin(2\pi \varphi )\sqrt {-2\ln r}~.$$
+Тогда $z_{0}$ и $z_{1}$ будут независимы и распределены нормально с математическим ожиданием 0 и дисперсией 1.
 
 ```c
 float gaussian(uint64_t *state)
@@ -31,6 +36,8 @@ float gaussian(uint64_t *state)
 ```
 В данном алгоритме применил трюк (1-U), что дает распределение (0,1]
 
+## Метод обратного преобразования
+
 Общая идея для получения заданной функции распределения - применить обратную функцию для отображения интервала выходных значений. 
 Так, например, можно синтезировать функцию с экспоненциальным распределением вероятности.
 ```c
@@ -39,6 +46,11 @@ float exponent(uint64_t *state) {
 	return -log(1.0f-u1);
 }
 ```
+![An animation of how inverse transform sampling generates normally distributed random values from uniformly distributed random values](https://upload.wikimedia.org/wikipedia/commons/c/cc/Inverse_Transform_Sampling_Example.gif) 
+
+By <a href="//commons.wikimedia.org/w/index.php?title=User:Davidjessop&amp;action=edit&amp;redlink=1" class="new" title="User:Davidjessop (page does not exist)">Davidjessop</a> - <span class="int-own-work" lang="en">Own work</span>, <a href="https://creativecommons.org/licenses/by-sa/4.0" title="Creative Commons Attribution-Share Alike 4.0">CC BY-SA 4.0</a>, <a href="https://commons.wikimedia.org/w/index.php?curid=100369573">Link</a>
+
+> An animation of how inverse transform sampling generates normally distributed random values from uniformly distributed random values
 
 ## Распределение Максвелла
 
@@ -52,3 +64,8 @@ float maxwell(uint64_t *state)
 	return sqrtf(x*x + y*y + z*z);
 }
 ```
+Распределение Максвелла записывается для модуля скорости частицы и имеет плотность:
+$$f_{v}(x)=Bx^{2}\exp \left[-\beta x^{2}\right]\,\,(x\geq 0)$$
+ и $f_{v}(x)=0\,\,(x<0)$, 
+где $x$ — формальная переменная, фактор $\beta >0$ определяется типом частиц и температурой, а множитель $B$ подбирается в зависимости от 
+$\beta$ для обеспечения нормировки. Именно это выражение считается максвелловским распределением в математике.
