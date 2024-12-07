@@ -13,7 +13,7 @@ static bool is_prime(uint64_t a, int size){
 		if (a%prime[i]==0) return false;
 	return true;
 }
-/*! Возведение в степнь по модулю */
+/*! Возведение в степнь по модулю $b^a \pmod N$ */
 static uint64_t powm(const uint64_t b, uint64_t a, const uint64_t N)
 {
 	uint64_t r = b;
@@ -25,6 +25,18 @@ static uint64_t powm(const uint64_t b, uint64_t a, const uint64_t N)
 		a>>=1;
 	}
 	return s;
+}
+/*! Корень квадратный по модулю простого числа $p \pmod 4 \equiv 3$ 
+
+	корень существует когда число x- квадратичный вычет
+	powm(x, (N-1)>>1, N)==1
+	
+	uint64_t sD= sqrtm(3, N);
+	if (powm(3,(N-1)>>1, N)==1 && sqrm(sD,N)==3) printf("..root\n");
+
+*/
+static uint64_t sqrtm(uint64_t v, uint64_t N){
+	return powm(v, (N+1)>>2, N);
 }
 /*! Модульное умножение */
 static uint64_t mulm(uint64_t a, uint64_t b, uint64_t N){
@@ -109,6 +121,7 @@ static uint64_t lucas_mul(uint64_t p, uint64_t k, uint64_t N)
 {
 	lucas_t  v = {.u=1, .v=p};
 	uint64_t d = subm(sqrm(p, N), 4, N);
+	
 	int i = 30-__builtin_clz(k);
 	for(; i>=0; --i) { 
 		v = lucas_dbl(v, N);
