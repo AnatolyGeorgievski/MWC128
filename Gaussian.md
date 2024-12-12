@@ -22,8 +22,11 @@ float uniform (uint64_t *state) {
 > The standard Box–Muller transform generates values from the standard normal distribution (i.e. standard normal deviates) with mean 0 and standard deviation 1.
 
 Пусть $r$ и $\varphi$ — независимые случайные величины, равномерно распределённые на интервале $(0, 1]$. Вычислим $z_{0}$ и $z_{1}$ по формулам
+
 $$z_{0}=\cos(2\pi \varphi )\sqrt {-2\ln r}~,$$
+
 $$z_{1}=\sin(2\pi \varphi )\sqrt {-2\ln r}~.$$
+
 Тогда $z_{0}$ и $z_{1}$ будут независимы и распределены нормально с математическим ожиданием 0 и дисперсией 1.
 
 ```c
