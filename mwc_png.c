@@ -1,9 +1,12 @@
-/*
+/* 
+Построение двумерного распределения X-Y и сохранение в формате PNG 16 bit
 
-$ gcc -O3 -march=native -o mwc mwc_png.c -lpng -lz
-$ ./mwc test.png
+Теория:
 
 
+Сборка и тестирование
+	$ gcc -O3 -march=native -o mwc mwc_png.c -lpng -lz
+	$ ./mwc test.png
 */
 #include <stddef.h>
 #include <stdlib.h>
@@ -102,8 +105,8 @@ int main(int argc, char *argv[]){
 
 	int width = 1024;
 	int height= 1024;
-	// 0xFE94, 0xFEA0;//0xFE30;
-	const uint32_t A1 =0xFE94;//0xFF00;//0xFFA8;//0xFEE4;
+	// 0xFE94, 0xFEA0, 0xFE30, 0xFF00, 0xFFA8, 0xFEE4
+	const uint32_t A1 =0xFE94;
 
 	if (argc<2) return 1;
 	char *file_name = argv[1];
@@ -123,7 +126,7 @@ int main(int argc, char *argv[]){
 		//if (v<width*height) 
 		uint16_t col = __builtin_bswap16(image[x + y*width]);
 		col += 1;
-		if (col<1) col = (1<<16)-1;
+		if (col<1) col = (1<<16)-1;// насыщение при переполнении
 		image[x + y*width] = __builtin_bswap16(col);
 	}
 

@@ -161,70 +161,6 @@ uint64_t mwc64x( uint64_t* state)
     return x;//((x>>32) ^ (x&0xFFFFFFFFU));
 }
 
-static inline uint64_t rotl(const uint64_t x, int k) {
-	return (x << k) | (x >> (64 - k));
-}
-/* 2019 by David Blackman and Sebastiano Vigna */
-uint64_t xoroshiro128p_next(uint64_t* s)
-{
-	const uint64_t s0 = s[0];
-	uint64_t s1 = s[1];
-	const uint64_t r = s0 + s1;
-	s1 ^= s0;
-	s[0] = rotl(s0, 24) ^ s1 ^ (s1 << 16); // a, b
-	s[1] = rotl(s1, 37); // c
-	return r;	
-}
-uint64_t xoroshiro128pp_next(uint64_t* s)
-{
-	const uint64_t s0 = s[0];
-	uint64_t s1 = s[1];
-	const uint64_t r = rotl(s0 + s1, 17) + s0;
-	s1 ^= s0;
-	s[0] = rotl(s0, 49) ^ s1 ^ (s1 << 21); // a, b
-	s[1] = rotl(s1, 28); // c
-	return r;
-}
-uint64_t xoroshiro128ss_next(uint64_t* s)
-{
-	const uint64_t s0 = s[0];
-	uint64_t s1 = s[1];
-	const uint64_t r = rotl(s0 * 5, 7) * 9;
-
-	s1 ^= s0;
-	s[0] = rotl(s0, 24) ^ s1 ^ (s1 << 16); // a, b
-	s[1] = rotl(s1, 37); // c
-	return r;
-}
-uint64_t xoshiro256p_next(uint64_t* s)
-{
-	const uint64_t r = s[0] + s[3];
-	const uint64_t t = s[1] << 17;
-	s[2] ^= s[0];
-	s[3] ^= s[1];
-
-	s[1] ^= s[2];
-	s[0] ^= s[3];
-	s[2] ^= t;
-	s[3] = rotl(s[3], 45);
-
-	return r;
-}
-uint64_t xoshiro256pp_next(uint64_t* s)
-{
-	const uint64_t r = rotl(s[0] + s[3], 23) + s[0];
-	const uint64_t t = s[1] << 17;
-	s[2] ^= s[0];
-	s[3] ^= s[1];
-
-	s[1] ^= s[2];
-	s[0] ^= s[3];
-	s[2] ^= t;
-	s[3] = rotl(s[3], 45);
-
-	return r;
-}
-
 /* This is a Goresky-Klapper generalized multiply-with-carry generator
    (see their paper "Efficient Multiply-with-Carry Random Number
    Generators with Maximal Period", ACM Trans. Model. Comput. Simul.,
@@ -272,7 +208,7 @@ uint64_t inline gmwc256_next(uint64_t *s) {
 	return x;
 }
 
-/* преобразование чисел в формат float32 дает распрделение [0,1) */
+/* преобразование чисел в формат float32 дает распределение [0,1) */
 static inline float u64_float(uint64_t x) {
 	return ((uint32_t)((x>>32) ^ (x&0xFFFFFFFFU)) >> 8) * 0x1.0p-24;
 }
