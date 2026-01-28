@@ -50,15 +50,15 @@ uint32_t xoroshiro64s_next(uint32_t s[2]) {
 	const uint32_t result = s0 * 0x9E3779BB;
 
 	s1 ^= s0;
-	s[0] = rotl(s0, 26) ^ s1 ^ (s1 << 9); // a, b
-	s[1] = rotl(s1, 13); // c
+	s[0] = rotl32(s0, 26) ^ s1 ^ (s1 << 9); // a, b
+	s[1] = rotl32(s1, 13); // c
 
 	return result;
 }
 uint32_t xoroshiro64ss_next(uint32_t s[2]) {
  	const uint32_t s0 = s[0];
 	uint32_t s1 = s[1];
-	const uint32_t result = rotl(s0 * 0x9E3779BB, 5) * 5;
+	const uint32_t result = rotl32(s0 * 0x9E3779BB, 5) * 5;
 
     s1 ^= s0;
 	s[0] = rotl32(s0, 26) ^ s1 ^ (s1 << 9); // a, b
