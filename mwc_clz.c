@@ -24,78 +24,6 @@ static inline uint64_t rotl(const uint64_t x, int k) {
 static inline uint64_t rotr(const uint64_t x, int k) {
 	return (x << (64 - k)) ^ (x >> k);
 }
-// Scramblers
-static uint64_t count_next(){
-	static uint64_t x = 0;
-	++x;
-	return x;
-}
-static uint64_t gray_next(){
-	static uint64_t x = ~0;
-	++x;
-	return x^rotl(x,63);
-}
-static uint64_t scrambler_ss_next(){
-	static uint64_t x = ~0;
-	++x;
-	return rotl(x * 5, 7) * 9;
-}
-static uint64_t scrambler_1_next(){
-	static uint64_t x = ~0;
-	++x;
-	return x^(rotl(~x,1)&rotl(x,2));
-}
-static uint64_t scrambler_1b_next(){
-	static uint64_t x = ~0;
-	++x;
-	return x^(rotl(~x,8)&rotl(x,16));
-}
-
-static uint64_t scrambler_2_next(){
-	static uint64_t x = ~0;
-	++x;
-	return x^(rotl(x,1)^rotl(x,2));
-}
-static uint64_t scrambler_2b_next(){
-	static uint64_t x = ~0;
-	++x;
-	return x^(rotl(x,8)^rotl(x,16));
-}
-static uint64_t scrambler_3_next(){
-	static uint64_t x = ~0;
-	++x;
-	return x^(rotl(~x,1)&rotl(x,2)&rotl(x,3));
-}
-static uint64_t scrambler_3b_next(){
-	static uint64_t x = ~0;
-	++x;
-	return x^(rotl(~x,8)&rotl(x,16)&rotl(x,24));
-}
-static uint64_t scrambler_sigma0_next(){
-	static uint64_t x = ~0;
-	++x;
-	return rotr(x,1)^rotr(x,8)^(x>>7);
-}
-static uint64_t scrambler_sigma1_next(){
-	static uint64_t x = ~0;
-	++x;
-	return rotr(x,19)^rotr(x,61)^(x>>6);
-}
-static uint64_t scrambler_sum0_next(){
-	static uint64_t x = ~0;
-	++x;
-	return rotr(x,28)^rotr(x,34)^rotr(x, 39);
-}
-static uint64_t scrambler_sum1_next(){
-	static uint64_t x = 0;
-	++x;
-	return rotr(x,14)^rotr(x,18)^rotr(x, 41);
-}
-static uint64_t scrambler_p_next(){
-	static uint64_t x = 0;
-	++x;
-	return x + rotl(x,32);
-}
 #if 0
 extern void sha256d(uint8_t *hash, const uint8_t *data, unsigned int len);
 uint8_t hash[32];
@@ -135,13 +63,52 @@ static inline uint64_t mwc128_next() {
 	s[1] = t >> 64;
 	return result;
 }
-static inline uint64_t mwc128x1b_next() {
+static uint64_t mwc128x1_next() {
+	static uint64_t s[2] = {-1, 1};
+	const uint64_t x = s[0];
+	const uint128_t t = (uint128_t)MWC_A1 * s[0] + s[1];
+	s[0] = t;
+	s[1] = t >> 64;
+	return x^(rotl(x,1)^rotl(x,2));
+}
+static uint64_t mwc128x1b_next() {
+	static uint64_t s[2] = {-1, 1};
+	const uint64_t x = s[0];
+	const uint128_t t = (uint128_t)MWC_A1 * s[0] + s[1];
+	s[0] = t;
+	s[1] = t >> 64;
+	return x^(rotl(x,8)^rotl(x,16));
+}
+static uint64_t mwc128x2_next() {
+	static uint64_t s[2] = {-1, 1};
+	const uint64_t x = s[0];
+	const uint128_t t = (uint128_t)MWC_A1 * s[0] + s[1];
+	s[0] = t;
+	s[1] = t >> 64;
+	return x^(rotl(~x,1)&rotl(x,2));
+}
+static uint64_t mwc128x2b_next() {
 	static uint64_t s[2] = {-1, 1};
 	const uint64_t x = s[0];
 	const uint128_t t = (uint128_t)MWC_A1 * s[0] + s[1];
 	s[0] = t;
 	s[1] = t >> 64;
 	return x^(rotl(~x,8)&rotl(x,16));
+}
+
+
+#define GMWC_MINUSA0 0x7d084a4d80885f
+#define GMWC_A0INV 0x9b1eea3792a42c61
+#define GMWC_A1 0xff002aae7d81a646
+
+/* The state must be initialized so that GMWC_MINUS_A0 <= c <= GMWC_A1.
+   For simplicity, we suggest to set c = 1 and x to a 64-bit seed. */
+static uint64_t inline gmwc128_next() {
+	static uint64_t s[2] = {-1, 1};
+	const __uint128_t t = GMWC_A1 * (__uint128_t)s[0] + s[1];
+	s[0] = GMWC_A0INV * (uint64_t)t;
+	s[1] = (t + GMWC_MINUSA0 * (__uint128_t)s[0]) >> 64;
+	return s[0];
 }
 /* 2019 by David Blackman and Sebastiano Vigna */
 uint64_t s[2] = {-1, 1};
@@ -206,6 +173,7 @@ static uint64_t xoroshiro128ss_next()
 	return r;
 }
 #include <math.h>
+int mwc_verbose = 0;
 /* Алгоритм состоит из двух частей, можно запускать только одну */ 
 double clz_test(const char* name, uint64_t (*next)()) {
     uint64_t hist0[64]={0};
@@ -215,16 +183,21 @@ double clz_test(const char* name, uint64_t (*next)()) {
         int i = __builtin_clzll(x);
         hist0[i]++;
     } while (--count);
-    int N = 32; 
-    while (hist0[N-1]==0) N--;
     uint64_t n =0;
+    int N = 64; 
     for (int i=0; i<N; i++)
         n += hist0[i];
+    while (hist0[N-1]==0) N--;
     double P=0.5, chi2=0;
     for (int i=0; i<N && n*P>=112; i++, P/=2) {
         double v = (hist0[i] - n*P);
         v = v*v/((n*P));
         chi2 += v;
+        if (v > 2) 
+        if (mwc_verbose) {
+            double D = (hist0[i] - n*P)/sqrt(n*P);
+            printf ("%2d:%12llu |%12.1f | %6.3f %s\n", i, hist0[i], n*P, D, v>3.5?"fail":"");
+        }
     }
 	return chi2;
 }
@@ -239,7 +212,10 @@ int main(){
         {"xoroshiro128**", xoroshiro128ss_next},
         {"xoroshiro128+",  xoroshiro128p_next},
         {"xoroshiro128++", xoroshiro128pp_next},
+        {"GMWC128", gmwc128_next},
         {"MWC128", mwc128_next},
+        {"MWC128", mwc128x1_next},
+        {"MWC128", mwc128x1b_next},
     };
 
     char name[64];
@@ -252,6 +228,7 @@ int main(){
 	int n=0;
 	int sz = sizeof(aa)/sizeof(uint32_t);
     int n_gen = sizeof(gen)/sizeof(gen[0]);
+    mwc_verbose = 1;
 for(int k=16;k<count; k++){
 	++n;
 	printf ("----------------------------------%d\n", k);
@@ -282,6 +259,7 @@ for(int k=16;k<count; k++){
 		puts(name);
 #endif
 }
+    mwc_verbose = 0;
    	return 0;
 }
 #endif
