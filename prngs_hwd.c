@@ -1,4 +1,10 @@
 #define next mwc128_next
+static inline uint64_t rotl(const uint64_t x, int k) {
+	return (x << k) | (x >> (64 - k));
+}
+static inline uint32_t rotl32(const uint32_t x, int k) {
+	return (x << k) | (x >> (32 - k));
+}
 
 /*!
 
@@ -34,25 +40,33 @@ static const uint64_t MWC128_jump96[2] = { 0xe6f7814467f3fcdd, 0x394649cfd6769c9
 
 */
 static inline uint64_t mwc128_next() {
+	static uint64_t s[2] = { 123, -1ULL };
 	const uint64_t result = s[0];
 	const uint128_t t = (uint128_t)MWC_A1 * s[0] + s[1];
 	s[0] = t;
 	s[1] = t >> 64;
 	return result;
 }
+static inline uint64_t mwc128x2_next() {
+	static uint64_t s[2] = { 123, -1ULL };
+	const uint64_t x = s[0];
+	const uint128_t t = (uint128_t)MWC_A1 * s[0] + s[1];
+	s[0] = t;
+	s[1] = t >> 64;
+	return x^(rotl(~x,1)&rotl(x,2));
+}
 /*! \brief Генерация псевдо-случайного числа. Один шаг алгоритма */
-#define MWC64_A0 0xFFFEB81Bu
+#define MWC64_A0 0xFFFEB81BuLL
 static inline uint64_t mwc64x_next()
 {
+	static uint64_t s[2] = { 123, -1ULL };
 	uint64_t x = *s;
+	x  = MWC64_A0*(uint32_t)(x) + (x>>32);
 	*s = MWC64_A0*(uint32_t)(x) + (x>>32);
-    return ((x>>32) ^ (x&0xFFFFFFFFU));
+    return x^(x>>32);// ^ (x&0xFFFFFFFFU));
 }
 
 
-static inline uint32_t rotl32(const uint32_t x, int k) {
-	return (x << k) | (x >> (32 - k));
-}
 static inline uint32_t xoroshiro64s_next() {
 	const uint32_t s0 = s[0];
 	uint32_t s1 = s[1];
@@ -76,9 +90,6 @@ static inline uint32_t xoroshiro64ss_next() {
 }
 /* Sample file for hwd.c (xoroshiro128+). */
 
-static inline uint64_t rotl(const uint64_t x, int k) {
-	return (x << k) | (x >> (64 - k));
-}
 
 
 static inline uint64_t xoroshiro128p_next() {

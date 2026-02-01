@@ -7,8 +7,14 @@
 static inline uint64_t rotl(const uint64_t x, int k) {
 	return (x << k) ^ (x >> (64 - k));
 }
+static inline uint32_t rotl32(const uint32_t x, int k) {
+	return (x << k) ^ (x >> (32 - k));
+}
 static inline uint64_t rotr(const uint64_t x, int k) {
 	return (x << (64 - k)) ^ (x >> k);
+}
+static inline uint32_t rotr32(const uint32_t x, int k) {
+	return (x << (32 - k)) ^ (x >> k);
 }
 // Scramblers
 static uint64_t count_next(){
@@ -17,9 +23,19 @@ static uint64_t count_next(){
 	return x;
 }
 static uint64_t gray_next(){
-	static uint64_t x = ~0;
+	static uint64_t x = 0;
 	++x;
 	return x^rotl(x,63);
+}
+static uint64_t gray32_next(){
+	static uint32_t x = 0;
+	++x;
+	return x^rotr32(x,1);
+}
+static uint64_t gray32L_next(){
+	static uint32_t x = 0;
+	++x;
+	return x^rotl32(x,1);
 }
 static uint64_t scrambler_ss_next(){
 	static uint64_t x = ~0;
@@ -27,29 +43,54 @@ static uint64_t scrambler_ss_next(){
 	return rotl(x * 5, 7) * 9;
 }
 static uint64_t scrambler_1_next(){
-	static uint64_t x = ~0;
+	static uint64_t x = 0;
 	++x;
 	return x^(rotl(x,1)^rotl(x,2));
 }
+static uint64_t scrambler_1_32_next(){
+	static uint32_t x = 0;
+	++x;
+	return x^(rotl32(x,1)^rotl32(x,2));
+}
 static uint64_t scrambler_1b_next(){
-	static uint64_t x = ~0;
+	static uint64_t x = 0;
 	++x;
 	return x^(rotl(x,8)^rotl(x,16));
 }
+static uint64_t scrambler_1b32_next(){
+	static uint32_t x = 0;
+	++x;
+	return x^(rotl32(x,8)^rotl32(x,16));
+}
 static uint64_t scrambler_2_next(){
-	static uint64_t x = ~0;
+	static uint64_t x = 0;
 	++x;
 	return x^(rotl(~x,1)&rotl(x,2));
 }
+static uint64_t scrambler_2_32_next(){
+	static uint32_t x = 0;
+	++x;
+	return x^(rotl32(~x,1)&rotl32(x,2));
+}
 static uint64_t scrambler_2b_next(){
-	static uint64_t x = ~0;
+	static uint64_t x = 0;
 	++x;
 	return x^(rotl(~x,8)&rotl(x,16));
+}
+static uint64_t scrambler_2b32_next(){
+	static uint32_t x = 0;
+	++x;
+	return x^(rotl32(~x,8)&rotl32(x,16));
 }
 static uint64_t scrambler_3_next(){
 	static uint64_t x = ~0;
 	++x;
 	return x^(rotl(~x,1)&rotl(x,2)&rotl(x,3));
+}
+static uint64_t scrambler_3_32_next(){
+	static uint32_t x = ~0;
+	++x;
+	return x^(rotl32(~x,1)&rotl32(x,2)&rotl32(x,3));
 }
 static uint64_t scrambler_3b_next(){
 	static uint64_t x = ~0;
@@ -66,8 +107,18 @@ static uint64_t scrambler_sigma1_next(){
 	++x;
 	return rotr(x,19)^rotr(x,61)^(x>>6);
 }
+static uint64_t scrambler_sigma032_next(){
+	static uint32_t x = 0;
+	++x;
+	return rotr32(x,7)^rotr32(x,18)^(x>>3);
+}
+static uint64_t scrambler_sigma132_next(){
+	static uint32_t x = ~0;
+	++x;
+	return rotr32(x,17)^rotr32(x,19)^(x>>10);
+}
 static uint64_t scrambler_sum0_next(){
-	static uint64_t x = ~0;
+	static uint64_t x = 0;
 	++x;
 	return rotr(x,28)^rotr(x,34)^rotr(x, 39);
 }
@@ -75,6 +126,16 @@ static uint64_t scrambler_sum1_next(){
 	static uint64_t x = 0;
 	++x;
 	return rotr(x,14)^rotr(x,18)^rotr(x, 41);
+}
+static uint64_t scrambler_sum032_next(){
+	static uint32_t x = 0;
+	++x;
+	return rotr32(x,2)^rotr32(x,13)^rotr32(x, 22);
+}
+static uint64_t scrambler_sum132_next(){
+	static uint32_t x = 0;
+	++x;
+	return rotr32(x,6)^rotr32(x,11)^rotr32(x, 25);
 }
 static uint64_t scrambler_p_next(){
 	static uint64_t x = 0;
@@ -119,11 +180,8 @@ static inline uint64_t mwc128x1b_next() {
 	return x^(rotl(~x,8)&rotl(x,16));
 }
 /* 2019 by David Blackman and Sebastiano Vigna */
-uint64_t s[2] = {-1, 1};
-static inline uint32_t rotl32(const uint32_t x, int k) {
-	return (x << k) | (x >> (32 - k));
-}
 static inline uint64_t xoroshiro64s_next() {
+	static uint64_t s[2] = {-1, 1};
 	const uint32_t s0 = s[0];
 	uint32_t s1 = s[1];
 	const uint32_t result = s0 * 0x9E3779BB;
@@ -135,6 +193,7 @@ static inline uint64_t xoroshiro64s_next() {
 	return result;
 }
 static inline uint64_t xoroshiro64ss_next() {
+	static uint64_t s[2] = {-1, 1};
  	const uint32_t s0 = s[0];
 	uint32_t s1 = s[1];
 	const uint32_t result = rotl32(s0 * 0x9E3779BB, 5) * 5;
@@ -146,6 +205,7 @@ static inline uint64_t xoroshiro64ss_next() {
 }
 uint64_t xoroshiro128p_next()
 {
+	static uint64_t s[2] = {-1, 1};
 	const uint64_t s0 = s[0];
 	uint64_t s1 = s[1];
 	const uint64_t r = s0 + s1;
@@ -156,6 +216,7 @@ uint64_t xoroshiro128p_next()
 }
 uint64_t xoroshiro128pp_next()
 {
+	static uint64_t s[2] = {-1, 1};
 	const uint64_t s0 = s[0];
 	uint64_t s1 = s[1];
 	const uint64_t r = rotl(s0 + s1, 17) + s0;
@@ -166,6 +227,7 @@ uint64_t xoroshiro128pp_next()
 }
 uint64_t xoroshiro128ss_next()
 {
+	static uint64_t s[2] = {-1, 1};
 	const uint64_t s0 = s[0];
 	uint64_t s1 = s[1];
 	const uint64_t r = rotl(s0 * 5, 7) * 9;
@@ -176,18 +238,32 @@ uint64_t xoroshiro128ss_next()
 	return r;
 }
 #include <math.h>
-static inline double difficulty(uint64_t x, double A) {
-	return 1/fmax((double)x,0.5);
+static inline double difficulty(uint64_t x) {
+	return (double)1/((double)x+0.5);
 }
 double dif_test(const char* name, uint64_t (*next)()) {
-	_Float64x diffi = 0;
+	const int m = 2;
+	long double diffi = 0;
     uint64_t count = 1uLL<<32;
 	double A = count;
+	double hist[64] = {0};
+	uint32_t v[64] = {0};
     do {
 		uint64_t x = next();
-		//if ((x>>(64-0))==0) 
-			diffi += difficulty(rotl(x,32)>>(32-8),A);
+		//x = rotl(x,34);//>>(32-8);
+		double d = difficulty(x);
+		diffi += d;
+		uint32_t x0 = x;//^(x>>32);
+		if (x0) {
+			int i = x0? __builtin_clz(x0): 31;
+			hist[i>>m] += d;
+			v[i>>m] ++;
+		}
 	} while(--count);
+	if (1)  {
+		for(int i=0;i<64; i++)
+			if (hist[i]!=0) printf ("%2d: %12.3f| %u\n", i, hist[i], v[i]);
+	}
 	return diffi;
 }
 #if defined(TEST_SCRAMBLER)
@@ -198,17 +274,28 @@ int main(){
         uint64_t (*next)();
     } gen[] = {
         {"Counter", count_next},
-        {"Gray code", gray_next},
-        {"Scrambler 1", scrambler_1_next},
-        {"Scrambler 2", scrambler_2_next},
-        {"Scrambler 3", scrambler_3_next},
+        {"Gray-64L code", gray_next},
+        {"Gray-32R code", gray32_next},
+        {"Gray-32L code", gray32L_next},
+        {"Scrambler 1-64", scrambler_1_next},
+        {"Scrambler 1-32", scrambler_1_32_next},
+        {"Scrambler 2-64", scrambler_2_next},
+        {"Scrambler 2-32", scrambler_2_32_next},
+        {"Scrambler 3-64", scrambler_3_next},
+        {"Scrambler 3-32", scrambler_3_32_next},
         {"Scrambler 1b", scrambler_1b_next},
+        {"Scrambler 1b32", scrambler_1b32_next},
         {"Scrambler 2b", scrambler_2b_next},
+        {"Scrambler 2b32", scrambler_2b32_next},
         {"Scrambler 3b", scrambler_3b_next},
+        {"Scrambler Sigma0-32", scrambler_sigma032_next},
         {"Scrambler Sigma0", scrambler_sigma0_next},
+        {"Scrambler Sigma1-32", scrambler_sigma132_next},
         {"Scrambler Sigma1", scrambler_sigma1_next},
         {"Scrambler Sum0", scrambler_sum0_next},
+        {"Scrambler Sum0-32", scrambler_sum032_next},
         {"Scrambler Sum1", scrambler_sum1_next},
+        {"Scrambler Sum1-32", scrambler_sum132_next},
 
         {"Scrambler **", scrambler_ss_next},
         {"Scrambler +", scrambler_p_next},
@@ -220,7 +307,7 @@ int main(){
     };
   if (0) // 
 	for (int i=0; i<32; i++) {
-		double x = difficulty(1uLL<<i, 0x1p+31);
+		double x = difficulty(1uLL<<i);
 		printf("%2d:diff = %.2f\n", i, x);
 	}
   if (1) {// difficulty
