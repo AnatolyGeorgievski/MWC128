@@ -16,6 +16,14 @@ static inline uint64_t rotr(const uint64_t x, int k) {
 static inline uint32_t rotr32(const uint32_t x, int k) {
 	return (x << (32 - k)) ^ (x >> k);
 }
+// Hamming weight for 64-bit integers
+static inline int hamming_weight64(uint64_t x) {
+    return __builtin_popcountll(x);
+}
+// Hamming weight for 32-bit integers
+static inline int hamming_weight32(uint32_t x) {
+    return __builtin_popcount(x);
+}
 // Scramblers
 static uint64_t count_next(){
 	static uint64_t x = 0;
@@ -27,7 +35,7 @@ static uint64_t gray_next(){
 	++x;
 	return x^rotl(x,63);
 }
-static uint64_t gray32_next(){
+static uint64_t gray32R_next(){
 	static uint32_t x = 0;
 	++x;
 	return x^rotr32(x,1);
@@ -37,8 +45,18 @@ static uint64_t gray32L_next(){
 	++x;
 	return x^rotl32(x,1);
 }
+static uint64_t scrambler_s32_next(){
+	static uint64_t x = 0;
+	++x;
+	return x * 0x9E3779BBu;
+}
+static uint64_t scrambler_s_next(){
+	static uint64_t x = 0;
+	++x;
+	return x * 0x9e3779b97f4a7c13ull;
+}
 static uint64_t scrambler_ss_next(){
-	static uint64_t x = ~0;
+	static uint64_t x = 0;
 	++x;
 	return rotl(x * 5, 7) * 9;
 }
@@ -108,7 +126,7 @@ static uint64_t scrambler_sigma1_next(){
 	return rotr(x,19)^rotr(x,61)^(x>>6);
 }
 static uint64_t scrambler_sigma032_next(){
-	static uint32_t x = 0;
+	static uint32_t x = ~0;
 	++x;
 	return rotr32(x,7)^rotr32(x,18)^(x>>3);
 }
@@ -118,22 +136,22 @@ static uint64_t scrambler_sigma132_next(){
 	return rotr32(x,17)^rotr32(x,19)^(x>>10);
 }
 static uint64_t scrambler_sum0_next(){
-	static uint64_t x = 0;
+	static uint64_t x = ~0;
 	++x;
 	return rotr(x,28)^rotr(x,34)^rotr(x, 39);
 }
 static uint64_t scrambler_sum1_next(){
-	static uint64_t x = 0;
+	static uint64_t x = ~0;
 	++x;
 	return rotr(x,14)^rotr(x,18)^rotr(x, 41);
 }
 static uint64_t scrambler_sum032_next(){
-	static uint32_t x = 0;
+	static uint32_t x = ~0;
 	++x;
 	return rotr32(x,2)^rotr32(x,13)^rotr32(x, 22);
 }
 static uint64_t scrambler_sum132_next(){
-	static uint32_t x = 0;
+	static uint32_t x = ~0;
 	++x;
 	return rotr32(x,6)^rotr32(x,11)^rotr32(x, 25);
 }
@@ -239,32 +257,37 @@ uint64_t xoroshiro128ss_next()
 }
 #include <math.h>
 static inline double difficulty(uint64_t x) {
-	return (double)1/((double)x+0.5);
+	return 1/((double)x+0.5);
 }
-double dif_test(const char* name, uint64_t (*next)()) {
-	const int m = 2;
-	long double diffi = 0;
-    uint64_t count = 1uLL<<32;
-	double A = count;
-	double hist[64] = {0};
-	uint32_t v[64] = {0};
-    do {
+double dif_test(const char* name, uint64_t (*next)(), double *sum) {
+	#define M 32
+	#define DIM 3
+	const int m = 2;	// группировка значений по разрядам
+	long double diffi = 0; 		// суммарная сложность
+    uint64_t count = 1uLL<<32; 	// число отсчетов в тесте
+	double hist[M] = {0}; // распределение сложности по категориям
+	uint32_t v [M] = {0}; // частоты попадания в каждую категорию
+    for (uint64_t k = 0; k< count; k++) {
 		uint64_t x = next();
-		//x = rotl(x,34);//>>(32-8);
 		double d = difficulty(x);
 		diffi += d;
-		uint32_t x0 = x;//^(x>>32);
-		if (x0) {
+		uint32_t x0 = x;
+		if (k%DIM == 1) // фильтр 1/3
+		{// распределение по числу нулевых бит
 			int i = x0? __builtin_clz(x0): 31;
-			hist[i>>m] += d;
-			v[i>>m] ++;
+			hist[(i>>m)] += d; // 
+			v   [(i>>m)] ++; // частоты по битовой сложности
 		}
-	} while(--count);
-	if (1)  {
-		for(int i=0;i<64; i++)
-			if (hist[i]!=0) printf ("%2d: %12.3f| %u\n", i, hist[i], v[i]);
 	}
-	return diffi;
+	if (sum) {// суммирование по категориям
+		for(int i=0;i<M; i++)
+			sum[i] += hist[i];
+	}
+	if (1)  { // вывод подробного отчета по категориям
+		for(int i=0;i<M; i++)
+			if (v[i]!=0) printf ("%2d: %12.3f| %u\n", i, hist[i], v[i]);
+	}
+	return diffi; // суммарная сложность
 }
 #if defined(TEST_SCRAMBLER)
 int main(){
@@ -274,30 +297,32 @@ int main(){
         uint64_t (*next)();
     } gen[] = {
         {"Counter", count_next},
-        {"Gray-64L code", gray_next},
-        {"Gray-32R code", gray32_next},
+//        {"Gray-64L code", gray_next},
+        {"Gray-32R code", gray32R_next},
         {"Gray-32L code", gray32L_next},
-        {"Scrambler 1-64", scrambler_1_next},
         {"Scrambler 1-32", scrambler_1_32_next},
-        {"Scrambler 2-64", scrambler_2_next},
         {"Scrambler 2-32", scrambler_2_32_next},
-        {"Scrambler 3-64", scrambler_3_next},
         {"Scrambler 3-32", scrambler_3_32_next},
-        {"Scrambler 1b", scrambler_1b_next},
         {"Scrambler 1b32", scrambler_1b32_next},
-        {"Scrambler 2b", scrambler_2b_next},
         {"Scrambler 2b32", scrambler_2b32_next},
-        {"Scrambler 3b", scrambler_3b_next},
         {"Scrambler Sigma0-32", scrambler_sigma032_next},
-        {"Scrambler Sigma0", scrambler_sigma0_next},
         {"Scrambler Sigma1-32", scrambler_sigma132_next},
-        {"Scrambler Sigma1", scrambler_sigma1_next},
-        {"Scrambler Sum0", scrambler_sum0_next},
         {"Scrambler Sum0-32", scrambler_sum032_next},
-        {"Scrambler Sum1", scrambler_sum1_next},
         {"Scrambler Sum1-32", scrambler_sum132_next},
 
-        {"Scrambler **", scrambler_ss_next},
+		{"Scrambler 1-64", scrambler_1_next},
+        {"Scrambler 2-64", scrambler_2_next},
+        {"Scrambler 3-64", scrambler_3_next},
+        {"Scrambler 1b", scrambler_1b_next},
+        {"Scrambler 2b", scrambler_2b_next},
+        {"Scrambler 3b", scrambler_3b_next},
+        {"Scrambler Sigma0", scrambler_sigma0_next},
+        {"Scrambler Sigma1", scrambler_sigma1_next},
+        {"Scrambler Sum0", 	scrambler_sum0_next},
+        {"Scrambler Sum1", 	scrambler_sum1_next},
+        {"Scrambler *(32)", scrambler_s32_next},
+        {"Scrambler *", 	scrambler_s_next},
+        {"Scrambler **", 	scrambler_ss_next},
         {"Scrambler +", scrambler_p_next},
         {"MWC64x", mwc64x_next},
         {"MWC128", mwc128_next},
@@ -317,7 +342,7 @@ int main(){
 	for (int n=0;n<512;n++) {
 		printf ("----------------------------------%d\n", n);
         for (int k=0;k<n_tests;k++) {
-            x = dif_test(gen[k].name, gen[k].next);
+            x = dif_test(gen[k].name, gen[k].next, NULL);
             printf("|%-16s| %-9.4g\n", gen[k].name, x);
         }
 	}
