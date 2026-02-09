@@ -1,6 +1,7 @@
 # Критерий нормальности Колмогорова-Смирнова
 
-* __Анатолий М. Георгиевский, ИТМО__
+* __Анатолий М. Георгиевский, ИТМО__, 2026
+* [MWC128/Normality](https://github.com/AnatolyGeorgievski/MWC128)
 
 ## Постановка задачи
 
@@ -641,7 +642,7 @@ int hamming_distance64(uint64_t x, uint64_t y) {
 \Gamma (z,x)=\int _{x}^{\infty }t^{z-1}\,e^{-t}\,dt\quad\text{ (верхняя неполная гамма-функция)}
 ```
 
-## Выбор скрамблера/рандомизатора
+## Выбор скрамблера
 
 [[1805.01407](https://arxiv.org/pdf/1805.01407)] Scrambled Linear Pseudorandom Number Generators
 

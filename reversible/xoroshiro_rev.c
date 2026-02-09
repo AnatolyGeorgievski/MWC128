@@ -1,4 +1,6 @@
 /*!
+	\author __Анатолий М. Георгиевский, ИТМО__, 2026
+	
 [2302.02778](https://arxiv.org/pdf/2302.02778) Reversible random number generation for
 adjoint Monte Carlo simulation of the heat equation
 
