@@ -262,7 +262,7 @@ static inline double difficulty(uint64_t x) {
 double dif_test(const char* name, uint64_t (*next)(), double *sum) {
 	#define M 32
 	#define DIM 3
-	const int m = 0;	// группировка значений по разрядам
+	const int m = 2;	  // группировка значений по разрядам 0:1, 1:1.5=3/2, 2:1.875= 15/8; 3:255/128, m: (2^2^m-1)/2^{2^m-1}
 	long double diffi = 0; 		// суммарная сложность
     uint64_t count = 1uLL<<32; 	// число отсчетов в тесте
 	double hist[M] = {0}; // распределение сложности по категориям
@@ -284,8 +284,12 @@ double dif_test(const char* name, uint64_t (*next)(), double *sum) {
 			sum[i] += hist[i];
 	}
 	if (1)  { // вывод подробного отчета по категориям
-		for(int i=0;i<M; i++)
-			if (v[i]!=0) printf ("%2d: %12.3f| %u\n", i, hist[i], v[i]);
+		printf ("##:  difficulty | frequency | hashrate \n");
+		for(int i=0;i<M>>m; i++)
+			if (v[i]!=0) {
+				double hr = v[i]/(double)(1uLL<<(31 -(i<<m)));
+				printf ("%2d: %12.3f| %-10u| %f\n", i, hist[i], v[i], hr);
+			}
 	}
 	return diffi; // суммарная сложность
 }

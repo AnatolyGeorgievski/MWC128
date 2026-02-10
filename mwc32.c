@@ -109,8 +109,40 @@ uint16_t mwc16_check(uint16_t A){
 	}
 	return i;
 }
-
 #include <stdio.h>
+uint16_t mwc16_ones(uint16_t A, uint16_t seed) {
+	seed %= (A<<8) -1;
+	uint16_t s = seed;
+	const uint16_t B = 0xFFFF;
+	mwc16x(&s, A);
+	uint16_t i, prev =0;
+	for (i=0; i!= B; i++){
+		if (mwc16x(&s, A)==seed) break;
+		if ((s>>__builtin_ctz(s))==1) {
+			printf(" %2d", i - prev, __builtin_ctz(s));
+			prev = i;
+		}
+	}
+	printf(" =%d\n", i);
+	return i;
+}
+uint32_t mwc32_ones(uint32_t A, uint32_t seed) {
+	seed %= (A<<16) -1;
+	uint32_t s = seed;
+	const uint32_t B = 0xFFFFFFFF;
+	mwc32x(&s, A);
+	uint32_t i;
+	for (i=0; i!= B; i++){
+		if (mwc32x(&s, A)==seed) break;
+		if ((s>>__builtin_ctz(s))==1) {
+			printf("%3d", __builtin_ctz(s));
+		
+		}
+	}
+	printf(" =%x\n", i);
+	return i;
+}
+
 #include <math.h>
 int main (){
 
@@ -179,13 +211,24 @@ if(0){// однородность распределения
 	for (int k=0; a[k]!=0; k++){ 
 		uint32_t A1 = (uint16_t)(~a[k]);
 		uint32_t i = mwc32_check(A1);
-		if (i>0x3f000000uL) printf("A=%04X i=%08x (%d)\n", A1, i,a[k]);
+		if (i==mwc32_period(A1)) {
+			printf("A=%04X i=%08x (%d)\n", A1, i,a[k]);
+			uint32_t r = mwc32_ones( A1, (A1<<15)-1);
+		}
 	}
 
 	for (int k=1; k!=0xFF; k++){ 
 		uint16_t A1 = (uint8_t)(~k);
 		uint16_t i = mwc16_check(A1);
-		if (i==mwc16_period(A1)) printf("A=%02X i=%04x (%d)\n", A1, i,(uint8_t)(~A1));
+		if (i==mwc16_period(A1)) {
+			printf("A=%02X i=%04x (%d)\n", A1, i,(uint8_t)(~A1));
+			for (int n=1;n <8;n++)
+			{
+				uint32_t r = mwc16_ones( A1, (1<<n)-2);
+				// printf(" %x", r);
+			}
+			printf("\n");
+		}
 	}
 /*
 A=FFEA i=7ff4fffe (21)

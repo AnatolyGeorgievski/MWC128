@@ -138,6 +138,16 @@ static uint64_t xoroshiro64ss_next() {
 	s[1] = rotl32(s1, 13); // c
 	return result;
 }
+static uint64_t xorshift128p_next(void) {
+	static uint64_t s[2] = {1,-1};
+	uint64_t s1 = s[0];
+	const uint64_t s0 = s[1];
+	const uint64_t result = s0 + s1;
+	s[0] = s0;
+	s1 ^= s1 << 23; // a
+	s[1] = s1 ^ s0 ^ (s1 >> 18) ^ (s0 >> 5); // b, c
+	return result; 
+}
 static uint64_t xoroshiro128p_next()
 {
     static uint64_t s[2] = {1,-1};
@@ -209,13 +219,15 @@ int main(){
     } gen[] = {
 //        {"xoroshiro64*",   xoroshiro64s_next},
 //        {"xoroshiro64**",  xoroshiro64ss_next},
+        {"xorshift128+", 	xorshift128p_next},
         {"xoroshiro128**", xoroshiro128ss_next},
         {"xoroshiro128+",  xoroshiro128p_next},
         {"xoroshiro128++", xoroshiro128pp_next},
         {"GMWC128", gmwc128_next},
         {"MWC128", mwc128_next},
-        {"MWC128", mwc128x1_next},
-        {"MWC128", mwc128x1b_next},
+        {"MWC128x1", mwc128x1_next},
+        {"MWC128x2", mwc128x2_next},
+        {"MWC128x1b", mwc128x1b_next},
     };
 
     char name[64];
