@@ -1,4 +1,6 @@
-#define next mwc128_next
+//#define next mwc128_next
+#define next mwc64x2_next
+//#define next mwc32x2_next
 static inline uint64_t rotl(const uint64_t x, int k) {
 	return (x << k) | (x >> (64 - k));
 }
@@ -57,6 +59,7 @@ static inline uint64_t mwc128x2_next() {
 }
 /*! \brief Генерация псевдо-случайного числа. Один шаг алгоритма */
 #define MWC64_A0 0xFFFEB81BuLL
+#define MWC64_A1 0xfffebaebuLL
 static inline uint64_t mwc64x_next()
 {
 	static uint64_t s[2] = { 123, -1ULL };
@@ -65,7 +68,30 @@ static inline uint64_t mwc64x_next()
 	*s = MWC64_A0*(uint32_t)(x) + (x>>32);
     return x^(x>>32);// ^ (x&0xFFFFFFFFU));
 }
-
+static inline uint64_t mwc64x2_next()
+{
+	static uint64_t s[2] = { 1, -1ULL };
+	uint64_t x = s[0];
+	uint64_t c = s[1];
+	x = MWC64_A0*(uint32_t)(x) + (x>>32);
+	c = MWC64_A1*(uint32_t)(c) + (c>>32);
+	s[0] = MWC64_A0*(uint32_t)(x) + (x>>32);
+	s[1] = MWC64_A1*(uint32_t)(c) + (c>>32);
+    return x^c;
+}
+static inline uint32_t mwc32x2_next()
+{
+	const uint32_t A1 = 0xFFEA; 
+	const uint32_t A2 = 0xFF94;
+	static uint32_t s[2] = { 1, ~1 };
+	uint32_t x = s[0];
+	uint32_t c = s[1];
+	x = A1*(uint16_t)(x) + (x>>16);
+	c = A2*(uint16_t)(c) + (c>>16);
+	s[0] = A1*(uint16_t)(x) + (x>>16);
+	s[1] = A2*(uint16_t)(c) + (c>>16);
+    return x^c;
+}
 
 static inline uint32_t xoroshiro64s_next() {
 	const uint32_t s0 = s[0];

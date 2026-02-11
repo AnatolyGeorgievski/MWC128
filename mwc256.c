@@ -83,8 +83,8 @@ uint64_t state[MP_SIZE] = {12345,1};
 	uint64_t inv = INVL(MWC_A3);
 	printf("INVL = 0x%016llx\n", inv);
 	// 3, 9,  (1<<(2+1)) - 3
-	state[0] = MWC_A3, state[1]=0, state[2]=0, state[3]=0;
-	for (i=0; i<((1<<5)-1); i++) {
+	state[0] = 1, state[1]=0, state[2]=0, state[3]=0;
+	for (i=0; i<((1<<5)-0); i++) {
 		mwc256_next(state);
 		mwc256_next(state);
 		mwc256_next(state);

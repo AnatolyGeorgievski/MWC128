@@ -92,6 +92,16 @@ uint64_t state[MP_SIZE] = {12345,1};
 	printf("jump(%d) = {0x%016llx, 0x%016llx, 0x%016llx};\n", i, s[0], s[1], s[2]);
 
 	state[0] = MWC_A2, state[1]=0, state[2]=0;
+	for (i=0; i<((1<<24)-1); i++) {// удвоенное число вызовов
+		mwc192_next(state);
+		mwc192_next(state);
+	}
+	printf("stat(24) = {0x%016llx, 0x%016llx, 0x%016llx};\n", state[0], state[1], state[2]);
+	state[0] = MWC_A2, state[1]=0, state[2]=0;
+	mwc192_skip(state, (1ull<<24)-1);
+	printf("skip(24) = {0x%016llx, 0x%016llx, 0x%016llx};\n", state[0], state[1], state[2]);
+
+	state[0] = MWC_A2, state[1]=0, state[2]=0;
 	mwc192_skip(state, (1ull<<32)-1);
 	printf("skip(32) = {0x%016llx, 0x%016llx, 0x%016llx};\n", state[0], state[1], state[2]);
 
@@ -99,6 +109,14 @@ uint64_t state[MP_SIZE] = {12345,1};
 	for (; i<32; i++)
 		mp_mulm(s, s, s, P);
 	printf("jump(32) = {0x%016llx, 0x%016llx, 0x%016llx};\n", s[0], s[1], s[2]);
+
+	state[0] = MWC_A2, state[1]=0, state[2]=0;
+	mwc192_skip(state, (1ull<<48)-1);
+	printf("skip(48) = {0x%016llx, 0x%016llx, 0x%016llx};\n", state[0], state[1], state[2]);
+
+	for (; i<48; i++)
+		mp_mulm(s, s, s, P);
+	printf("jump(48) = {0x%016llx, 0x%016llx, 0x%016llx};\n", s[0], s[1], s[2]);
 
 
 	state[0] = MWC_A2, state[1]=0, state[2]=0;
@@ -112,6 +130,14 @@ uint64_t state[MP_SIZE] = {12345,1};
 	for (; i<96; i++)
 		mp_mulm(s, s, s, P);
 	printf("jump(96) = {0x%016llx, 0x%016llx, 0x%016llx};\n", s[0], s[1], s[2]);
+
+	state[0] = MWC_A2, state[1]=0, state[2]=0;
+	mwc192_jump(state);
+	printf("jump(96) = {0x%016llx, 0x%016llx, 0x%016llx};\n", state[0], state[1], state[2]);
+// расчет сдвиговой константы A^{2^96}
+	for (; i<128; i++)
+		mp_mulm(s, s, s, P);
+	printf("jump(128)= {0x%016llx, 0x%016llx, 0x%016llx};\n", s[0], s[1], s[2]);
 // расчет сдвиговой константы A^{2^96}
 	for (; i<144; i++)
 		mp_mulm(s, s, s, P);
