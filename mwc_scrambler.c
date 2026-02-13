@@ -1,4 +1,5 @@
-/*! 
+/*! Тестирование скрамблеров на распределение сложности по числу ведущих нулей
+
 Сборка
 	$ gcc -DTEST_SCRAMBLER -march=native -O3 -o mwc_scrambler mwc_scrambler.c 
  */

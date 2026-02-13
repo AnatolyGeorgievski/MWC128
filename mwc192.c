@@ -72,10 +72,10 @@ uint64_t state[MP_SIZE] = {12345,1};
 		printf("\n");
 	}
 	uint64_t inv = INVL(MWC_A2);
-	printf("INVL = 0x%016llx\n", inv);
+	printf("INVL = 0x%016llx\n", inv);// обратное число 
 	// 1, 5, 13, 29
 	state[0] = MWC_A2, state[1]=0, state[2]=0;
-	for (i=0; i<((1<<16)-1); i++) {// удвоенное число вызовов
+	for (i=0; i<((1<<16)-1); i++) {// удвоенное число вызовов, interleaved
 		mwc192_next(state);
 		mwc192_next(state);
 	}

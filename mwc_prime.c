@@ -75,6 +75,7 @@ int main(){
 	genprimes();
 	uint64_t a;
 	uint64_t p[MP_SIZE] = {-1, -1};
+if (0) { // генерация констант для MWC128
 	a = UINT64_C(0xffebb71d94fcdaf9);
 	p[MP_SIZE-1]  = a-1;
 	if (powm_tst2(p, 25)){
@@ -103,5 +104,43 @@ int main(){
 				printf("%016llx ..prime\n", a);
 		}
 	}
+}
+if (0) {// генерация констант для MWC64r1 
+	a = 0xFFFFFFFFuLL;
+	while (a%3 !=0) a -= 1;
+	if(a%3==0) 
+	for (uint64_t k=0; k<0x3FFFFFF; k++, a-=3){
+		p[MP_SIZE-1]  = a-1;p[0]=-1;
+		if (powm_tst2(p, 5))// тест Ферма для первых 5 простых чисел
+		//if ((a%3)==0) -- все делятся на 3
+		//if (rem(p, 24)==23) -- все делятся
+		if (is_prime((uint32_t)(~a)-1, prime_size)) // -- мой тест, выбор чисел A может быть основан на множесте простых чисел
+		if (mp_is_prime(p, prime_size))
+		{// printf("!");
+			mp_shr(p,1);
+			if (mp_is_prime(p, prime_size) && powm_tst2(p, 5))// тест на safe prime
+				printf("%016llx ..prime\n", a);
+		}
+	}
+}
+if (1) {// генерация констант для MWC64r2
+	a = (0xFFFFFFFFuLL<<32);
+	while ((a>>32)%3 !=0) a -= (1uLL<<32);
+
+	if((a>>32)%3==0) 
+	for (uint64_t k=0; k<0x3FFFFFF; k++, a-=(3uLL<<32)){// вычисление начиная с данного a
+		p[MP_SIZE-1]  = a-1;p[0]=-1;
+		if (powm_tst2(p, 5))// тест Ферма для первых 5 простых чисел
+		//if ((a%3)==0) -- все делятся на 3
+		//if (rem(p, 24)==23) -- все делятся
+		if (is_prime((~(a>>32))-1, prime_size)) // -- мой тест, выбор чисел A может быть основан на множесте простых чисел
+		if (mp_is_prime(p, prime_size))
+		{// printf("!");
+			mp_shr(p,1);
+			if (mp_is_prime(p, prime_size) && powm_tst2(p, 5))// тест на safe prime
+				printf("%016llx ..prime\n", a);
+		}
+	}
+}
 	return 0;
 }

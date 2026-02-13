@@ -124,6 +124,18 @@ uint16_t mwc16_check(uint16_t A){
 	return i;
 }
 #include <stdio.h>
+uint32_t xoroshiro64s_next(uint32_t s[2]) {
+	const uint32_t s0 = s[0];
+	uint32_t s1 = s[1];
+	const uint32_t result = s0 * 0x9E3779BB;
+
+	s1 ^= s0;
+	s[0] = rotl32(s0, 26) ^ s1 ^ (s1 << 9); // a, b
+	s[1] = rotl32(s1, 13); // c
+
+	return result;
+}
+
 // тест на зазор между степенями двойки
 uint16_t mwc16_ones(uint16_t A, uint16_t seed) {
 	seed %= (A<<8) -1;
@@ -150,13 +162,30 @@ static inline uint32_t _scrambler(uint32_t x) {return x;}
 // static inline uint32_t _scrambler(uint32_t x) {return x^rotl32(x,1)^rotl32(x,2);}
 //static inline uint32_t _scrambler(uint32_t x) {return x^(rotl32(~x,1)&rotl32(x,2));}
 uint32_t mwc32_ones(uint32_t A, uint32_t pattern) {
-	uint32_t s = pattern;
-	const uint32_t B = 0xFFFFFFFF;
+	uint32_t s = 1;// (A<<15)-1u;// -- чтобы попасть на вторую орбиту 2^{-1}
+	const uint32_t B = 0x7FFFFFFF;
 	mwc32x(&s, A);
-	uint32_t i, prev = 0;
+	uint32_t i, prev = 0, r;
 	for (i=1; i!= B; i++){
-		if (mwc32x(&s, A)==pattern) break;
+		mwc32x(&s, A);
+		//if (r==pattern) break;
         uint32_t r = _scrambler(s);
+		if (rotr32(r, __builtin_ctz(r))==pattern && i-prev>1) {
+			printf(" %2d", i - prev,__builtin_ctz(r));
+            prev = i;
+		}
+	}
+	printf(" =%x\n", i);
+	return i;
+}
+uint32_t xoro_ones(uint32_t* s, uint32_t pattern) {
+	const uint32_t B = 0x7FFFFFFF;
+	xoroshiro64s_next(s);
+	uint32_t i, prev = 0, r;
+	for (i=1; i!= B; i++){
+		xoroshiro64s_next(s);
+		//if (r==pattern) break;
+        uint32_t r = _scrambler(s[0]);
 		if (rotr32(r, __builtin_ctz(r))==pattern && i-prev>1) {
 			printf(" %2d", i - prev,__builtin_ctz(r));
             prev = i;
@@ -185,6 +214,45 @@ uint32_t mwc32x2_ones(uint32_t A1, uint32_t A2, uint32_t pattern) {
 #include <math.h>
 int main (){
 	// Вариант генерации - от списка простых чисел 
+	uint32_t AA[] = {
+		0xFFEA, 0xFFD7, 0xFFBD, 
+		0xFF9B, 0xFF81, 0xFF80, 0xFF7B, 
+		0xFF75, 0xFF48, 0xFF3F, 0xFF3C,
+		0xFF2C, 0xFF09, 0xFF03, 
+		0xFF00, 0xFEE4, 0xFEA8, 0xFEA5,
+		0xFEA0, 0xFE94, 0xFE8B, 0xFE72, 
+		0xFE4E, 0xFE30, 0xFE22, 0xFE15, 
+		0xFE04,
+		0};
+// A=FFEA i=7ff4fffe ( 21), P mod 24 =23, A mod 3 =0
+// A=FFD7 i=7feb7ffe ( 40), P mod 24 = 7, A mod 3 =2
+// A=FFBD i=7fde7ffe ( 66), P mod 24 =23, A mod 3 =0
+// A=FFA8 i=7fd3fffe ( 87), P mod 24 =23, A mod 3 =0
+// A=FF9B i=7fcd7ffe (100), P mod 24 = 7, A mod 3 =2
+// A=FF81 i=7fc07ffe (126), P mod 24 =23, A mod 3 =0
+// A=FF80 i=7fbffffe (127), P mod 24 = 7, A mod 3 =2
+// A=FF7B i=7fbd7ffe (132), P mod 24 =23, A mod 3 =0
+// A=FF75 i=7fba7ffe (138), P mod 24 =23, A mod 3 =0
+// A=FF48 i=7fa3fffe (183), P mod 24 =23, A mod 3 =0
+// A=FF3F i=7f9f7ffe (192), P mod 24 =23, A mod 3 =0
+// A=FF3C i=7f9dfffe (195), P mod 24 =23, A mod 3 =0
+// A=FF2C i=7f95fffe (211), P mod 24 = 7, A mod 3 =2
+// A=FF09 i=7f847ffe (246), P mod 24 =23, A mod 3 =0
+// A=FF03 i=7f817ffe (252), P mod 24 =23, A mod 3 =0
+// A=FF00 i=7f7ffffe (255), P mod 24 =23, A mod 3 =0
+// A=FEEB i=7f757ffe (276), P mod 24 =23, A mod 3 =0
+// A=FEE4 i=7f71fffe (283), P mod 24 = 7, A mod 3 =2
+// A=FEA8 i=7f53fffe (343), P mod 24 = 7, A mod 3 =2
+// A=FEA5 i=7f527ffe (346), P mod 24 = 7, A mod 3 =2
+// A=FEA0 i=7f4ffffe (351), P mod 24 =23, A mod 3 =0
+// A=FE94 i=7f49fffe (363), P mod 24 =23, A mod 3 =0
+// A=FE8B i=7f457ffe (372), P mod 24 =23, A mod 3 =0
+// A=FE72 i=7f38fffe (397), P mod 24 = 7, A mod 3 =2
+// A=FE4E i=7f26fffe (433), P mod 24 = 7, A mod 3 =2
+// A=FE30 i=7f17fffe (463), P mod 24 = 7, A mod 3 =2
+// A=FE22 i=7f10fffe (477), P mod 24 =23, A mod 3 =0
+// A=FE15 i=7f0a7ffe (490), P mod 24 = 7, A mod 3 =2
+// A=FE04 i=7f01fffe (507), P mod 24 =23, A mod 3 =0
 	uint16_t a[] = {255, 257, 263,
 269,	271,	277,	281,	283,
 293,	307,	311,	313,	317,
@@ -199,10 +267,26 @@ int main (){
 601,607,613,617,619,631,641,643,647,653,659,661,
 0};
     if (1) {
+		printf("Xoroshiro64s\n");
+		uint32_t s[2] = {1,-1};
+
+        uint32_t r;
+			r = xoro_ones( s, 0b01);
+			r = xoro_ones( s, (1<<2) -1);
+			r = xoro_ones( s, (1<<4) -1);
+			r = xoro_ones( s, (1<<8) -1);
+			r = xoro_ones( s, (1<<16) -1);
+			r = xoro_ones( s, (1u<<2) |1);
+			r = xoro_ones( s, (1u<<4) |1);
+			r = xoro_ones( s, (1u<<8) |1);
+			r = xoro_ones( s, (1u<<16) |1);
+    }
+    if (1) {
     // A=FEA0 i=7f4ffffe (351), P mod 24 =23, A mod 3 =0
     // A=FE94 i=7f49fffe (363), P mod 24 =23, A mod 3 =0
-        uint32_t A1 = 0xFEA0;
+        uint32_t A1 = 0xFF3C;
         uint32_t A2 = 0xFE94;
+		printf("mwc32x2 A1=%4x, A2=%4x\n", A1, A2);
         uint32_t r;
 			r = mwc32x2_ones( A1,A2, 0b01);
 			r = mwc32x2_ones( A1,A2, 0b11);
@@ -216,6 +300,27 @@ int main (){
 			r = mwc32x2_ones( A1,A2, (1u<<8) |1);
 			r = mwc32x2_ones( A1,A2, (1u<<16) |1);
     }
+    if (1) {
+    // A=FEA0 i=7f4ffffe (351), P mod 24 =23, A mod 3 =0
+    // A=FE94 i=7f49fffe (363), P mod 24 =23, A mod 3 =0
+        uint32_t A2 = 0xFEA0;
+        uint32_t A1 = 0xFE94;
+        uint32_t r;
+		for (int i=0; AA[i]!=0; i++) {
+			A1 = AA[i];
+			printf("A=%04X, %d\n", A1, (A1<<(16-5)) -1);
+			r = mwc32_ones( A1, 0b01);
+			r = mwc32_ones( A1, (1<<2) -1);
+			r = mwc32_ones( A1, (1<<4) -1);
+			r = mwc32_ones( A1, (1<<8) -1);
+			r = mwc32_ones( A1, (1<<16) -1);
+
+			r = mwc32_ones( A1, (1u<<2) |1);
+			r = mwc32_ones( A1, (1u<<4) |1);
+			r = mwc32_ones( A1, (1u<<8) |1);
+			r = mwc32_ones( A1, (1u<<16) |1);
+		}
+    }
     uint32_t r;
 	for (int k=0; a[k]!=0; k++){ 
 		uint32_t A1 = (uint16_t)(~a[k]);
@@ -223,15 +328,15 @@ int main (){
 		if (i==mwc32_period(A1)) {
 			printf("A=%04X i=%08x (%d), %d\n", A1, i,a[k], (A1<<(16-5)) -1);
 			r = mwc32_ones( A1, 0b01);
-			r = mwc32_ones( A1, 0b11);
+			r = mwc32_ones( A1, (1<<2) -1);
+			r = mwc32_ones( A1, (1<<4) -1);
 			r = mwc32_ones( A1, (1<<8) -1);
-			r = mwc32_ones( A1, (1<<9) -1);
-//			r = mwc32_ones( A1, 0b111);
-			r = mwc32_ones( A1, (1u<<1) |1);
+			r = mwc32_ones( A1, (1<<16) -1);
+
 			r = mwc32_ones( A1, (1u<<2) |1);
 			r = mwc32_ones( A1, (1u<<4) |1);
 			r = mwc32_ones( A1, (1u<<8) |1);
-			r = mwc32_ones( A1, (1u<<16) |1);
+			r = mwc32_ones( A1, (1u<<16)|1);
 		}
 	}
     if (0)

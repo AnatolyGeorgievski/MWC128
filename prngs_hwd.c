@@ -1,6 +1,21 @@
-//#define next mwc128_next
-#define next mwc64x2_next
+
+/*!	
+	\see https://github.com/AnatolyGeorgievski/MWC128
+	\see https://en.wikipedia.org/wiki/Multiply-with-carry_pseudorandom_number_generator
+
+
+	[2] Blackman, David; Vigna, Sebastiano (2018). "Scrambled Linear Pseudorandom Generators". arXiv:1805.01407 [cs.DS].
+
+Сборка
+	$ gcc -O3 -march=native -DHWD_BITS=32  -o hwd hwd.c
+ */
+#if (HWD_BITS==32)
+#define next mwc64r0_next
+//#define next mwc64r2_next
 //#define next mwc32x2_next
+#else
+#define next mwc128_next
+#endif
 static inline uint64_t rotl(const uint64_t x, int k) {
 	return (x << k) | (x >> (64 - k));
 }
@@ -9,13 +24,7 @@ static inline uint32_t rotl32(const uint32_t x, int k) {
 }
 
 /*!
-
-https://en.wikipedia.org/wiki/Multiply-with-carry_pseudorandom_number_generator
-
-	$ gcc -DTEST_MWC128 -O3 -march=native -o test mwc128.c
 	
-	
- [2] Blackman, David; Vigna, Sebastiano (2018). "Scrambled Linear Pseudorandom Generators". arXiv:1805.01407 [cs.DS].
  */
 #include <stdint.h>
 
@@ -26,12 +35,7 @@ typedef unsigned int __attribute__((mode(TI)))   uint128_t;
 #if 0
 #define MWC_A1 		0xff3a275c007b8ee6 // MWC128 - другой вариант, см википедию
 #endif
-/* Модуль M1 = A1*B1-1 
-	выполняется тождество A1 = B1^{-1} mod M1 B1 - обратное число для A1
- */
-static const uint64_t MWC_M1[2] = { 0xffffffffffffffff, MWC_A1 - 1 };
-static const uint64_t MWC128_jump64[2] = { 0xa72f9a3547208003, 0x2f65fed2e8400983 };
-static const uint64_t MWC128_jump96[2] = { 0xe6f7814467f3fcdd, 0x394649cfd6769c91 };
+
 /* Marsaglia multiply-with-carry Random Number Generator */
 /* uint64_t x, c -- состояние 
 
@@ -91,8 +95,29 @@ static inline uint32_t mwc32x2_next()
 	s[0] = A1*(uint16_t)(x) + (x>>16);
 	s[1] = A2*(uint16_t)(c) + (c>>16);
     return x^c;
+	
 }
 
+static inline uint32_t mwc64r0_next() {
+	const uint32_t A0 = 0xfffebaebuLL;
+	static uint32_t state[2] = { 1, ~1};
+    uint32_t r = state[0];
+    uint64_t t = (uint64_t)A0*state[0] + state[1];
+	state[0] = t;
+	state[1] = t>>32;
+    return r;
+}
+static inline uint32_t mwc64r2_next() {
+	const uint32_t A2 = 0xfffe71fb;
+	static uint32_t state[4] = { ~1, ~1, ~1, 1};
+    uint32_t r = state[2];
+    uint64_t t = (uint64_t)A2*state[0] + state[3];
+	state[0] = state[1];
+	state[1] = r;
+	state[2] = t;
+	state[3] = t>>32;
+    return r;
+}
 static inline uint32_t xoroshiro64s_next() {
 	const uint32_t s0 = s[0];
 	uint32_t s1 = s[1];
