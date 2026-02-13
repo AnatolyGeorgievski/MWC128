@@ -147,7 +147,7 @@ uint32_t mwc64r2( uint32_t* state, const uint32_t A) {
     return r;
 }
 ```
-Для выходных значений (r) использован скрамблер `XOR`, как в MWC64x. Скрамблер улучшает прохождение некоторых статистических тестов, в частности `sknuth_MaxOft` и `smarsa_BirthdaySpacings`.
+Для выходных значений (r) может быть использован скрамблер `XOR`, как в MWC64x. Скрамблер улучшает прохождение некоторых статистических тестов, в частности `sknuth_MaxOft` и `smarsa_BirthdaySpacings`.
 
 `sknuth_MaxOft` — это один из тестов в библиотеке TestU01 (Pierre L’Ecuyer и Richard Simard), входящий в батареи Crush / BigCrush. 
 
