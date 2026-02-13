@@ -10,8 +10,8 @@
 	$ gcc -O3 -march=native -DHWD_BITS=32  -o hwd hwd.c
  */
 #if (HWD_BITS==32)
-#define next mwc64r0_next
-//#define next mwc64r2_next
+//#define next mwc64r0_next
+#define next mwc64r2_next
 //#define next mwc32x2_next
 #else
 #define next mwc128_next
@@ -101,19 +101,19 @@ static inline uint32_t mwc32x2_next()
 static inline uint32_t mwc64r0_next() {
 	const uint32_t A0 = 0xfffebaebuLL;
 	static uint32_t state[2] = { 1, ~1};
-    uint32_t r = state[0];
+    uint32_t r = state[0];// ^state[1];
     uint64_t t = (uint64_t)A0*state[0] + state[1];
 	state[0] = t;
 	state[1] = t>>32;
     return r;
 }
 static inline uint32_t mwc64r2_next() {
-	const uint32_t A2 = 0xfffe71fb;
+	const uint32_t A2 = 0xffe118ab;
 	static uint32_t state[4] = { ~1, ~1, ~1, 1};
-    uint32_t r = state[2];
+    uint32_t r = state[2];// ^state[3];
     uint64_t t = (uint64_t)A2*state[0] + state[3];
 	state[0] = state[1];
-	state[1] = r;
+	state[1] = state[2];
 	state[2] = t;
 	state[3] = t>>32;
     return r;
