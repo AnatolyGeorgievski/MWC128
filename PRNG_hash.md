@@ -1,6 +1,7 @@
 # Хэш функция на базе генератора случайных чисел
 
- __Анатолий М. Георгиевский, ИТМО__, 2026
+ * _Анатолий М. Георгиевский_ , ИТМО, 2026 (https://github.com/AnatolyGeorgievski)
+ * _ĀĿΞX_ (https://github.com/Alex20129), -- обсуждение принципов построения mwc-хэш и тестирование 
 
 > Представляем метод синтеза некриптографической хэш-функции на алгоритмах MWC128.
 
@@ -55,7 +56,6 @@ static inline uint64_t mixer(uint64_t h) {
 }
 ```
 
-
 **Mixer parameters**
 
 Отправной точкой исследования является вариант финального миксера из функции `MurmurHash3`. Кроме того в составе разных хэш-функций мы нашли много вариантов миксера
@@ -66,7 +66,7 @@ static inline uint64_t mixer(uint64_t h) {
 4. $x ←  x \cdot Prime_2$
 5. $x ←  x \oplus (x \gg c)$
 
-Подобный миксер `Lea` использован в работе [4], `SplitMix64`  предлагается авторами в качестве рандомизатора SEED при инициализации Xoroshiro128 и генераторов с большой разрядностью состояния. `Avalanche` миксер заимствован из функции `xxHash64`.
+Подобный миксер `Lea` использован в работе [4], `SplitMix64`  предлагается авторами в качестве рандомизатора SEED при инициализации `Xoroshiro128` и генераторов с большой разрядностью состояния. `Avalanche` миксер заимствован из функции `xxHash64`.
 
 MurmurHash3 
 | Mixer	      | a | Prime1 | b | Prime2 | c |
@@ -101,7 +101,7 @@ MurmurHash3
 * Алгоритм некриптографического хэша [MWC128-hash](test/mwc128_hash.c) с размером выходных данных 128 и 64 бита. 
 * Алгоритм некриптографического хэша [Xoroshiro128-hash](test/xoshiro_hash.c) с длиной хэша 64 бита.
 
-Параметры генератора и миксера требуют оптимизации, константы не рассчитывались, а заимствованы из других работ.
+Параметры генератора и миксера требуют оптимизации, константы не рассчитывались, а заимствованы из других работ. Дальнейшее развитие темы: оптимизация, генератор RNS-MWC, использующий вектор из генераторов MWC, и векторный алгоритм параллельной генерации хэш.
 
 [1] David Blackman and Sebastiano Vigna. 2018. Scrambled Linear Pseudorandom Number Generators. \
 3 May 2018, 41 pages. [arxiv:1805.01407]() To appear in ACM Transactions on Mathematical Software.
@@ -113,3 +113,17 @@ Journal of Statistical Software, 11, 5, Aug., 1–5. coden:JSSOBK (https://doi.o
 
 [4] Guy L. Steele Jr. and Sebastiano Vigna. 2021. LXM: better splittable pseudorandom number generators (and almost as fast). 
 Proc. ACM Program. Lang. 5, OOPSLA, Article 148 (October 2021), 31 pages. (https://doi.org/10.1145/3485525)
+
+
+
+**Сборка теста**
+
+```sh
+$ git clone https://github.com/rurban/smhasher.git
+$ cd smhasher
+$ git submodule update --init --recursive
+$ cmake -B build
+$ cmake --build build -j 16 
+; Если всё хорошо собралось, можно прогнать тесты для встроенной функции, их там много:
+$ ./build/SMHasher prvhash64_64
+```
