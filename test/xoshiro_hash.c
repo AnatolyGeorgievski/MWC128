@@ -16,7 +16,7 @@ static inline uint64_t rotl(const uint64_t x, int k) {
 	return (x << k) | (x >> (64 - k));
 }
 // Update the XBG subgenerator (xoroshiro128v1_0)
-static inline void xoroshiro128_next(uint64_t* s) {
+static inline void xoroshiro128p_next(uint64_t* s) {
 	uint64_t s0 = s[0];
 	uint64_t s1 = s[1];
 	s1 ^= s0;
@@ -24,12 +24,30 @@ static inline void xoroshiro128_next(uint64_t* s) {
 	s[0] = s0 ^ s1 ^ (s1 << 16);
 	s[1] = rotl(s1, 37);
 }
+static inline void xoroshiro128pp_next(uint64_t* s) {
+	uint64_t s0 = s[0];
+	uint64_t s1 = s[1];
+	s1 ^= s0;
+    s0 = rotl(s0, 49);
+	s[0] = s0 ^ s1 ^ (s1 << 21); // a, b
+	s[1] = rotl(s1, 28); // c
+}
+// Сдвиги заимствованы из xoroshiro1024
+static inline void xoroshiro128_next(uint64_t* s) {
+	uint64_t s0 = s[0];
+	uint64_t s1 = s[1];
+	s1 ^= s0;
+    s0 = rotl(s0, 25);
+	s[0] = s0 ^ s1 ^ (s1 << 27);
+	s[1] = rotl(s1, 36);
+}
 /* 	Another structure for a PRNG is a very simple recurrence function 
 	combined with a powerful output mixing function. This includes counter mode 
 	block ciphers and non-cryptographic generators such as SplitMix64 */
 /*  In 2014, Steele, Lea, and Flood presented SplitMix, 
 	an object-oriented pseudorandom number generator (prng) that is quite fast 
 	(9 64-bit arithmetic/logical operations per 64 bits generated) and also splittable.
+    http://dx.doi.org/10.1145/2714064.2660195
  */
 static inline uint64_t splitmix64(uint64_t *seed) {
     uint64_t z = (*seed += 0x9e3779b97f4a7c15);
@@ -117,22 +135,15 @@ static inline uint64_t fastmix2(uint64_t x){
 
 static inline uint64_t mwc128_next(uint64_t *s);
 #define IV  0x9e3779b97f4a7c15u
-#define PAD 0
+#define PAD 0x0102030405060708u
 #define STATE_SZ 2
 uint64_t xoroshiro_hash(const uint8_t *data, uint64_t len, uint64_t seed) {
 	uint64_t s[STATE_SZ];
 	for (int i=0; i<STATE_SZ; i++)
 		s[i] = unmix_lea(seed+=IV);
-	for (int i=0; i<len>>3; i++) {
-		s[0] ^= *(uint64_t*)data; data+=8;
+	for (int i=0; i<len; i++) {
+		s[0] ^= *data++;
 		xoroshiro128_next(s);
-	}
-	if (len&7) {
-		int r = len&7;
-		uint64_t d = PAD;
-		__builtin_memcpy(&d, data, r); data+=r;
-		s[0] ^= d;
-        xoroshiro128_next(s);
 	}
  	return mix_lea(s[0]+s[1]);
 }

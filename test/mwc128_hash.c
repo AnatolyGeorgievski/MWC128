@@ -163,45 +163,51 @@ static inline uint64_t unmix_lea(uint64_t h) {
   h ^= h >> 32;
   return h;
 }
-#define IV 0x9e3779b97f4a7c15u
+#define IV 	0x9e3779b97f4a7c15u
+#define PAD 0x0102030405060708u
 #define STATE_SZ 2
-uint64_t mwc128_hash(const uint8_t *data, uint64_t len, uint64_t seed) {
+uint64_t mwc128_hash(const uint8_t *data, uint64_t len, uint64_t seed0) {
 	uint128_t h;
-	uint64_t* s = (uint64_t*)&h;
-	for (int i=0; i<2; i++)
-		s[i] = unmix_lea(seed+=IV);
+	uint64_t *s = (uint64_t *)&h;
+	for (int i=0; i<STATE_SZ; i++)
+		s[i] = unmix_lea(seed0+=IV);
 	for (int i=0; i<len>>3; i++){
-		h+= (*(uint64_t*) data); data+=8;
-		h = s[0]*MWC_A1 + s[1];
+		uint64_t d = (*(uint64_t*) data); data+=8;
+		h^= d;
+		h = ((uint64_t)h)*MWC_A1 + (h>>64);
 	}
 	if (len&7) {
 		int r = len&7;
-		uint64_t d = 0;
+		uint64_t d = PAD;
 		__builtin_memcpy(&d, data, r); data+=r;
-		h+= d;
-		h = ((uint64_t)h*MWC_A1)<<(64-(r*8)) + (h>>(r*8));
+		h^= (d);
+		h = ((uint64_t)h)*(MWC_A1<<(64-(r*8))) + (h>>(r*8));
 	}
-	return mix_lea(s[0]^s[1]);
+	return mix_lea(h^(h>>64));
 }
+
 void mwc128_128_hash(const uint8_t *data, uint64_t len, uint64_t seed, uint64_t* result) {
+	// uint128_t h = seed+((uint128_t)0x9e3779b97f4a7c15<<64);// + ((uint128_t)len<<64);
+	// h = ((uint64_t)h)*MWC_A1 + (h>>64);
 	uint128_t h;
 	uint64_t* s = (uint64_t*)&h;
 	for (int i=0; i<STATE_SZ; i++)
-		s[i] = unmix_lea(seed+=IV);
+	 	s[i] = unmix_lea(seed+=IV);
 	for (int i=0; i<len>>3; i++){
-		h+= *(uint64_t*) data; data+=8;
-		h = s[0]*MWC_A1 + s[1];
+		uint64_t d = (*(uint64_t*) data); data+=8;
+		h^= d;
+		h = ((uint64_t)h)*MWC_A1 + (h>>64);
 	}
 	if (len&7) {
 		int r = len&7;
-		uint64_t d = 0;
+		uint64_t d = PAD;
 		__builtin_memcpy(&d, data, r); data+=r;
-		h+= d;
-		h = ((uint64_t)h*MWC_A1)<<(64-(r*8)) + (h>>(r*8));
+		h^= d;
+		h = ((uint64_t)h)*(MWC_A1<<(64-(r*8))) + (h>>(r*8));
 	}
-	result[0] = mix_lea(s[0]^s[1]);
-	h = s[0]*MWC_A1 + s[1]; // XOF генерация
-	result[1] = mix_lea(s[0]^s[1]);
+	result[0] = mix_lea(h^(h>>64));
+	h = ((uint64_t)h)*MWC_A1 + (h>>64);// XOF генерация
+	result[1] = mix_lea(h^(h>>64));
 }
 
 #if defined(TEST_MWC128_HASH)

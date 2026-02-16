@@ -65,26 +65,32 @@ static inline uint64_t mix_lea(uint64_t h) {
 Алгоритм построен на генераторе Xoroshiro128, как в работе [4], LXM. Применяется рандомизация и миксер выходных значений. В качестве миксера выбрана функция `mix_lea()`, Doug Lea's mixing function. 
 Для построения хэш функции использован генератор `Xoroshiro128+`, выходным значением генератора является `plus` скрамблер от внутреннего состояния.
 ```c
-uint64_t prng_hash(const uint8_t *data, uint64_t len, uint64_t seed) {
+uint64_t xoroshiro_hash(const uint8_t *data, uint64_t len, uint64_t seed) {
 	uint64_t s[STATE_SZ];
 	for (int i=0; i<STATE_SZ; i++)
 		s[i] = unmix_lea(seed+=IV);
-	for (int i=0; i<len>>3; i++) {
-		s[0] ^= *(uint64_t*)data; data+=8;
-		_next(s);
-	}
-	if (len&7) {
-		int r = len&7;
-		uint64_t d = PAD;
-		memcpy(&d, data, r); data+=r;
-		s[0] ^= d;
-        _next(s);
+	for (int i=0; i<len; i++) {
+		s[0] ^= *data++;
+		xoroshiro128_next(s);
 	}
  	return mix_lea(s[0]+s[1]);
 }
 ```
 
 Функция миксера, как и функция генератора - обратима. Это свойство может быть использовано при контроле целостности в операции дописывания данных в конец файла.
+
+Генераторы xoroshiro128, 
+```c
+static inline void xoroshiro128_next(uint64_t* s) {
+	uint64_t s0 = s[0];
+	uint64_t s1 = s[1];
+	s1 ^= s0;
+    s0 = rotl(s0, A);
+	s[0] = s0 ^ s1 ^ (s1 << B);
+	s[1] = rotl(s1, C);
+}
+```
+Известные константы сдвигов сведены в таблицу. В исходном коде определены три функции xoroshiro с состоянием 128 бит.
 
 **Mixer parameters**
 
