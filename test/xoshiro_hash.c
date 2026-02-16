@@ -99,6 +99,14 @@ static inline uint64_t mix_lea(uint64_t h) {
   h ^= h >> 32;
   return h;
 }
+static inline uint64_t unmix_lea(uint64_t h) {
+  h ^= h >> 32;
+  h *= 0xa6f8e26927e132cb;
+  h ^= h >> 32;
+  h *= 0xa6f8e26927e132cb;
+  h ^= h >> 32;
+  return h;
+}
 static inline uint64_t fastmix2(uint64_t x){
 	x *= 0xbea225f9c5d17377ULL; 
 	x ^= x >> 31; 
@@ -108,27 +116,25 @@ static inline uint64_t fastmix2(uint64_t x){
 }
 
 static inline uint64_t mwc128_next(uint64_t *s);
+#define IV  0x9e3779b97f4a7c15u
+#define PAD 0
 #define STATE_SZ 2
-uint64_t xoroshiro_hash(const uint8_t *data, uint64_t len, uint64_t seed0) {
+uint64_t xoroshiro_hash(const uint8_t *data, uint64_t len, uint64_t seed) {
 	uint64_t s[STATE_SZ];
-	uint64_t seed = seed0+(len<<32);
-	for (int i=0; i<STATE_SZ; i++){
-		s[i] = fastmix(fastmix(seed+=0x9e3779b97f4a7c15));
-//		s[i] = fastmix2(seed+=0x9e3779b97f4a7c15);
-//		s[i] = splitmix64(&seed);
-	}
-	for (int i=0; i<len; i++) {
-		s[0] ^= data[i];
+	for (int i=0; i<STATE_SZ; i++)
+		s[i] = unmix_lea(seed+=IV);
+	for (int i=0; i<len>>3; i++) {
+		s[0] ^= *(uint64_t*)data; data+=8;
 		xoroshiro128_next(s);
 	}
-	uint64_t z = s[0]+s[1];
- 	z = fastmix(z);
- 	z = fastmix(z);
- 	return z;
-//	return fastmix2(z);
-//	return mix_stafford13(z);
-//	return mix_lea(z);
-//	return avalanche(z);
+	if (len&7) {
+		int r = len&7;
+		uint64_t d = PAD;
+		__builtin_memcpy(&d, data, r); data+=r;
+		s[0] ^= d;
+        xoroshiro128_next(s);
+	}
+ 	return mix_lea(s[0]+s[1]);
 }
 //0xfffecd60, 0xfffeb81b, 0xfffe7369,0xfffe636a, 0xfffe59a7, 0xfffe29b9,0xfffe1d0b
 #define MWC_A0 (uint64_t)0xfffeb81b //    const uint64_t P = (MWC_A0<<32)-1;

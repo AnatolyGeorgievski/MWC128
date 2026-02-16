@@ -23,31 +23,34 @@
 
 ```c
 uint64_t mwc128_hash(const uint8_t *data, uint64_t len, uint64_t seed0) {
-	uint128_t h = seed0+(uint128_t)IV;// + ((uint128_t)len<<64);
-	h = (uint64_t)h*A1 + (h>>64);
+	uint128_t h;
+	uint64_t* s = (uint64_t*)&h;
+	for (int i=0;i<2;i++)
+		s[i] = unmix(seed+=IV);
 	for (int i=0; i<len>>3; i++){
 		h+=*(uint64_t*)data; data+=8;
 		h = (uint64_t )h*A1 + (h>>64); // итерация MWC128
 	}
 	if (len&7) {
-		int s = len&7;
+		int r = len&7;// reminder
 		uint64_t d = PAD;
-		memcpy(&d, data, s); data+=s;
+		memcpy(&d, data, r); data+=r;
 		h+= (d);
-		h = (uint64_t )h*(A1<<(64-(s*8))) + (h>>(s*8));
+		h = (uint64_t )h*(A1<<(64-(r*8))) + (h>>(r*8));
 	}
-	return mixer(h^(h>>64));
+	return mix(h^(h>>64));
 }
 ```
 Параметры алгоритма: 
 * `A1` - параметр генератора MWC128, где $P=A_1\cdot 2^{64} -1$ простое число.
 * `IV` - вектор инициализации хэш
-* `PAD` - дополнение данных 
+* `PAD` - дополнение данных `0x0102030405060708`
 
-В составе алгоритма использован миксер Lea's. Это не самый сильный миксер, но самый простой и оптимально подошел к нашей задаче. 
+В составе алгоритма использован миксер Doug Lea's. Это не самый сильный миксер, но самый простой и оптимально подошел к нашей задаче. 
 ```c
-// Doug Lea's mixing function
-static inline uint64_t mixer(uint64_t h) {
+// Doug Lea's MXMX- mixing function
+static inline uint64_t mix_lea(uint64_t h) {
+  h ^= h >> 32;
   h *= 0xdaba0b6eb09322e3ull;
   h ^= h >> 32;
   h *= 0xdaba0b6eb09322e3ull;
@@ -55,6 +58,33 @@ static inline uint64_t mixer(uint64_t h) {
   return h;
 }
 ```
+Ниже мы приводим множество миксеров, с которыми можно комбинировать выход функции генератора.
+
+**Алгоритм PRNG-hash**
+
+Алгоритм построен на генераторе Xoroshiro128, как в работе [4], LXM. Применяется рандомизация и миксер выходных значений. В качестве миксера выбрана функция `mix_lea()`, Doug Lea's mixing function. 
+Для построения хэш функции использован генератор `Xoroshiro128+`, выходным значением генератора является `plus` скрамблер от внутреннего состояния.
+```c
+uint64_t prng_hash(const uint8_t *data, uint64_t len, uint64_t seed) {
+	uint64_t s[STATE_SZ];
+	for (int i=0; i<STATE_SZ; i++)
+		s[i] = unmix_lea(seed+=IV);
+	for (int i=0; i<len>>3; i++) {
+		s[0] ^= *(uint64_t*)data; data+=8;
+		_next(s);
+	}
+	if (len&7) {
+		int r = len&7;
+		uint64_t d = PAD;
+		memcpy(&d, data, r); data+=r;
+		s[0] ^= d;
+        _next(s);
+	}
+ 	return mix_lea(s[0]+s[1]);
+}
+```
+
+Функция миксера, как и функция генератора - обратима. Это свойство может быть использовано при контроле целостности в операции дописывания данных в конец файла.
 
 **Mixer parameters**
 
@@ -66,17 +96,18 @@ static inline uint64_t mixer(uint64_t h) {
 4. $x ←  x \cdot Prime_2$
 5. $x ←  x \oplus (x \gg c)$
 
-Подобный миксер `Lea` использован в работе [4], `SplitMix64`  предлагается авторами в качестве рандомизатора SEED при инициализации `Xoroshiro128` и генераторов с большой разрядностью состояния. `Avalanche` миксер заимствован из функции `xxHash64`.
+Подобный миксер `Doug Lea's` использован в работе [4], `SplitMix64`  предлагается авторами в качестве рандомизатора SEED при инициализации `Xoroshiro128` и генераторов с большой разрядностью состояния. `Avalanche` миксер заимствован из функции `xxHash64`.
 
-MurmurHash3 
+MurmurHash3 64-bit avalanche mixer представлен в проекте SMHasher, Appleby 2016. 
+
 | Mixer	      | a | Prime1 | b | Prime2 | c |
 |-------------|---|--------|---|--------|---|
 | MurmurHash3 |33 |0xff51afd7ed558ccd |33 |0xc4ceb9fe1a85ec53	|33 |
-| Lea's       |32 |0xdaba0b6eb09322e3 |32 |0xdaba0b6eb09322e3	|32 |
+| Doug Lea's  |32 |0xdaba0b6eb09322e3 |32 |0xdaba0b6eb09322e3	|32 |
 | SplitMix64  |30 |0xbf58476d1ce4e5b9 |27 |0x94d049bb133111eb   |31 |
 | Avalanche   |33 |0xC2B2AE3D27D4EB4F |29 |0x165667B19E3779F9   |32 |
 
-[David Stafford's mixing function](http://zimbry.blogspot.com/2011/09/better-bit-mixing-improving-on.html) опубликованы в блоге.
+[David Stafford's improved mixing functions](http://zimbry.blogspot.com/2011/09/better-bit-mixing-improving-on.html) опубликованы в блоге автора.
 
 Теблица David Stafford's Mixer 
 | Mixer	| a | Prime1 | b | Prime2 | c |
@@ -95,6 +126,8 @@ MurmurHash3
 |Mix12	|29	|0x3cd0eb9d47532dfb	|26	|0x63660277528772bb	|33
 |Mix13	|30	|0xbf58476d1ce4e5b9	|27	|0x94d049bb133111eb	|31
 |Mix14	|30	|0x4be98134a5976fd3	|29	|0x3bc0993a5ad19a13	|31
+
+Любой из представленных миксеров дает хороший результат прохождения теста SMHasher
 
 **Обратимость операции Mixer**
 
@@ -122,7 +155,7 @@ uint64_t reverse_xor_shift(uint64_t h, unsigned int m) {
 | 27 | `h ^= h >> 27; h ^= h >> 54;`
 | 26 | `h ^= h >> 26; h ^= h >> 52;`
 
-Таблица Обратимость xor-shift
+Таблица Обратных чисел для операции unMix
 | Mixer	 | a | $Prime_1^{-1}$ | b | $Prime_2^{-1}$ | c |
 |--------|---|----------------|---|--------|---|
 |unMix_Lea 	  | |`0xa6f8e26927e132cb` | |`0xA6F8E26927E132CB` |
@@ -147,7 +180,7 @@ uint64_t reverse_xor_shift(uint64_t h, unsigned int m) {
 ```math
 A\cdot B \bmod 2^{64} \equiv 1
 ```
-Таким образом все семейство операций Mixer является обратимой функцией. 
+Таким образом функция XMXMX- avalanche Mixer является обратимой функцией. 
 
 
 ## Результаты работы
@@ -155,7 +188,23 @@ A\cdot B \bmod 2^{64} \equiv 1
 * Алгоритм некриптографического хэша [MWC128-hash](test/mwc128_hash.c) с размером выходных данных 128 и 64 бита. 
 * Алгоритм некриптографического хэша [Xoroshiro128-hash](test/xoshiro_hash.c) с длиной хэша 64 бита.
 
-Параметры генератора и миксера требуют оптимизации, константы не рассчитывались, а заимствованы из других работ. Дальнейшее развитие темы: оптимизация, генератор RNS-MWC, использующий вектор из генераторов MWC, и векторный алгоритм параллельной генерации хэш.
+**Speed Test**
+| hash  | производительность| Скорость |
+|-------|-------------------|----------------------------|
+| mwc128| 2.330 bytes/cycle | 5098.79 MiB/sec @ 2295 MHz |
+| xxh64 | 2.380 bytes/cycle | 5209.48 MiB/sec @ 2295 MHz |
+| xoroshiro128| 0.356 bytes/cycle | 778.59 MiB/sec @ 2295 MHz |
+
+Тест выполняется на блоках 256k. На маленьких блоках, 8-16-32 байта, MWC128 хэш выигрывает в производительности.
+
+**Результаты теста SMHasher** 
+* [mwc128-64-hash-smhasher](test/test-mwc128-smhasher.txt) MWC128 с размером хэщ 64 бит
+* [mwc128-128-hash-smhasher](test/test-mwc128-smhasher.txt) MWC128 с размером хэш 128 бит
+* [xoroshiro128-hash-smhasher](test/test-xoroshiro128-smhasher.txt)
+* [xxh64-hash-smhasher](test/test-xxh64-smhasher.txt)
+
+Параметры генератора и миксера требуют оптимизации, константы не рассчитывались, а заимствованы из других работ. 
+Дальнейшее развитие темы: оптимизация, генератор RNS-MWC, использующий вектор из генераторов MWC, и векторный алгоритм параллельной генерации хэш.
 
 [1] David Blackman and Sebastiano Vigna. 2018. Scrambled Linear Pseudorandom Number Generators. \
 3 May 2018, 41 pages. [arxiv:1805.01407]() To appear in ACM Transactions on Mathematical Software.
@@ -169,7 +218,6 @@ Journal of Statistical Software, 11, 5, Aug., 1–5. coden:JSSOBK (https://doi.o
 Proc. ACM Program. Lang. 5, OOPSLA, Article 148 (October 2021), 31 pages. (https://doi.org/10.1145/3485525)
 
 
-
 **Сборка теста**
 
 ```sh
@@ -180,4 +228,9 @@ $ cmake -B build
 $ cmake --build build -j 16 
 ; Если всё хорошо собралось, можно прогнать тесты для встроенной функции, их там много:
 $ ./build/SMHasher prvhash64_64
+```
+
+```sh
+$ ./build/SMHasher mwc128
+$ ./build/SMHasher mwc128_128
 ```

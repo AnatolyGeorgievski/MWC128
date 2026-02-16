@@ -119,7 +119,18 @@ static inline uint64_t fastmix2(uint64_t x){
 	x ^= x >> 31;
 	return x;
 }
+
+static inline uint64_t wyfinal(uint64_t h) {
+    h ^= h >> 33;
+    h *= 0xff51afd7ed558ccdull;
+    h ^= h >> 33;
+    h *= 0xc4ceb9fe1a85ec53ull;
+    h ^= h >> 33;
+    return h;
+}
+// MurmurHash3 64-bit avalanche mixer
 // http://dx.doi.org/10.1145/2714064.2660195
+// Original MurmurHash3 implementation: https://github.com/aappleby/smhasher/blob/master/src/MurmurHash3.cpp
 static inline uint64_t mix64(uint64_t x){
 	x  =  (x ^ (x >> 33)) * 0xff51afd7ed558ccdu;
 	x  =  (x ^ (x >> 33)) * 0xc4ceb9fe1a85ec53u;
@@ -137,7 +148,7 @@ static uint64_t unmix64(uint64_t z) {
 typedef unsigned int __attribute__((mode(TI)))   uint128_t;
 // Doug Lea's mixing function, fastmix дважды
 static inline uint64_t mix_lea(uint64_t h) {
-//  h ^= h >> 32;
+  h ^= h >> 32;
   h *= 0xdaba0b6eb09322e3ull;
   h ^= h >> 32;
   h *= 0xdaba0b6eb09322e3ull;
@@ -149,65 +160,48 @@ static inline uint64_t unmix_lea(uint64_t h) {
   h *= 0xa6f8e26927e132cb;
   h ^= h >> 32;
   h *= 0xa6f8e26927e132cb;
-//  h ^= h >> 32;
+  h ^= h >> 32;
   return h;
 }
-
-uint64_t mwc128_hash(const uint8_t *data, uint64_t len, uint64_t seed0) {
-	uint128_t h = seed0+((uint128_t)0x9e3779b97f4a7c15<<64);// + ((uint128_t)len<<64);
-	h = ((uint64_t)h)*MWC_A1 + (h>>64);
+#define IV 0x9e3779b97f4a7c15u
+#define STATE_SZ 2
+uint64_t mwc128_hash(const uint8_t *data, uint64_t len, uint64_t seed) {
+	uint128_t h;
+	uint64_t* s = (uint64_t*)&h;
+	for (int i=0; i<2; i++)
+		s[i] = unmix_lea(seed+=IV);
 	for (int i=0; i<len>>3; i++){
 		h+= (*(uint64_t*) data); data+=8;
-		h = ((uint64_t)h)*MWC_A1 + (h>>64);
+		h = s[0]*MWC_A1 + s[1];
 	}
 	if (len&7) {
-		int s = len&7;
-		uint64_t d = 0x0102030405060708u;
-		__builtin_memcpy(&d, data, s); data+=s;
-		h+= (d);
-		h = ((uint64_t)h)*(MWC_A1<<(64-(s*8))) + (h>>(s*8));
+		int r = len&7;
+		uint64_t d = 0;
+		__builtin_memcpy(&d, data, r); data+=r;
+		h+= d;
+		h = ((uint64_t)h*MWC_A1)<<(64-(r*8)) + (h>>(r*8));
 	}
-	return mix_lea(h^(h>>64));
+	return mix_lea(s[0]^s[1]);
 }
-void mwc128_128_hash(const uint8_t *data, uint64_t len, uint64_t seed0, uint64_t* result) {
-	uint128_t h = seed0+((uint128_t)0x9e3779b97f4a7c15<<64);// + ((uint128_t)len<<64);
-	h = ((uint64_t)h)*MWC_A1 + (h>>64);
+void mwc128_128_hash(const uint8_t *data, uint64_t len, uint64_t seed, uint64_t* result) {
+	uint128_t h;
+	uint64_t* s = (uint64_t*)&h;
+	for (int i=0; i<STATE_SZ; i++)
+		s[i] = unmix_lea(seed+=IV);
 	for (int i=0; i<len>>3; i++){
-		h+= (*(uint64_t*) data); data+=8;
-		h = ((uint64_t)h)*MWC_A1 + (h>>64);
+		h+= *(uint64_t*) data; data+=8;
+		h = s[0]*MWC_A1 + s[1];
 	}
 	if (len&7) {
-		int s = len&7;
-		uint64_t d = 0x0102030405060708u;
-		__builtin_memcpy(&d, data, s); data+=s;
-		h+= (d);
-		h = ((uint64_t)h)*(MWC_A1<<(64-(s*8))) + (h>>(s*8));
+		int r = len&7;
+		uint64_t d = 0;
+		__builtin_memcpy(&d, data, r); data+=r;
+		h+= d;
+		h = ((uint64_t)h*MWC_A1)<<(64-(r*8)) + (h>>(r*8));
 	}
-	result[0] = mix64(h^(h>>64));
-    h = ((uint64_t)h)*MWC_A1 + (h>>64);
-	result[1] = mix64(h^(h>>64));
-}
-void mwc128_256_hash(const uint8_t *data, uint64_t len, uint64_t seed0, uint64_t* result) {
-	uint128_t h = seed0+((uint128_t)0x9e3779b97f4a7c15<<64);// + ((uint128_t)len<<64);
-	h = ((uint64_t)h)*MWC_A1 + (h>>64);
-	for (int i=0; i<len>>3; i++){
-		h+= (*(uint64_t*) data); data+=8;
-		h = ((uint64_t)h)*MWC_A1 + (h>>64);
-	}
-	if (len&7) {
-		int s = len&7;
-		uint64_t d = 0x0102030405060708u;
-		__builtin_memcpy(&d, data, s); data+=s;
-		h+= (d);
-		h = ((uint64_t)h)*(MWC_A1<<(64-(s*8))) + (h>>(s*8));
-	}
-	result[0] = mix_lea(h^(h>>64));
-    h = ((uint64_t)h)*MWC_A1 + (h>>64);
-	result[1] = mix_lea(h^(h>>64));
-    h = ((uint64_t)h)*MWC_A1 + (h>>64);
-	result[2] = mix_lea(h^(h>>64));
-    h = ((uint64_t)h)*MWC_A1 + (h>>64);
-	result[3] = mix_lea(h^(h>>64));
+	result[0] = mix_lea(s[0]^s[1]);
+	h = s[0]*MWC_A1 + s[1]; // XOF генерация
+	result[1] = mix_lea(s[0]^s[1]);
 }
 
 #if defined(TEST_MWC128_HASH)
