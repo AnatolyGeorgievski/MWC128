@@ -88,4 +88,8 @@ void mwc192_hash(const uint8_t *data, uint64_t len, uint64_t seed, uint64_t* res
 	result[0] = mix(s[0]^s[1]);
 	mwc192_next(s);
 	result[1] = mix(s[0]^s[1]);
+	// mwc192_next(s);
+	// result[2] = mix(s[0]^s[1]);
+	// mwc192_next(s);
+	// result[3] = mix(s[0]^s[1]);
 }

@@ -234,8 +234,11 @@ return mix(s[0]^s[1]);
 
 ## Результаты работы
 
-* Алгоритм некриптографического хэша [MWC128-hash](test/mwc128_hash.c) с размером выходных данных 128 и 64 бита. 
-* Алгоритм некриптографического хэша [Xoroshiro128-hash](test/xoshiro_hash.c) с длиной хэша 64 бита.
+Алгоритмы некриптографического хэша:
+* [MWC128-hash](test/mwc128_hash.c) с размером выходных данных 128 и 64 бита. 
+* [MWC192-hash](test/mwc192_hash.c) с размером выходных данных 192, 128 и 64 бита. 
+* [Xoroshiro128-hash](test/xoshiro_hash.c) с длиной хеша 64 бита. Три варианта генератора с разным набором сдвиговых констант.
+* [xxHash64](test/xxh64.c) с длиной хеша 64 бита, переносимая реализация с явной векторизацией.
 
 **Speed Test**
 
@@ -248,7 +251,7 @@ return mix(s[0]^s[1]);
 | xxh64  | 2.380       | 5209.48 MiB/sec @ 2295 MHz |
 | xoroshiro | 0.356 | 778.59 MiB/sec @ 2295 MHz |
 
-Тест `SpeedBulk` выполняется на блоках 256k и это может быть не показательно, когда для хэши изготавливаются для коротких строк. 
+Тест `SpeedBulk` выполняется на блоках 256k и это может быть не показательно, когда хеши изготавливаются для коротких строк. 
 
 Тест `SpeedSmall` позволяет сравнить производительность строках, 8-16-32 байта (с выравниванием) и без выравнивания 1-32 байта, 
 На x86_64 MWC128 хэш выигрывает в производительности.
@@ -301,18 +304,18 @@ $ cmake --build build -j 16
 ; Если всё хорошо собралось, можно прогнать тесты для встроенной функции, их там много:
 $ ./build/SMHasher prvhash64_64
 ```
-
+Таблица тестов хэш-функций добавляется в `main.cpp`
 ```cpp
-{ xoroshiro_test,       64, 0xA8F45CF8, "xoroshiro",   "xoroshiro128_hash", POOR,  {} },
-{ mwc64_test,           64, 0xA8F45CF8, "mwc64",       "mwc64_hash", POOR,  {} },
-{ mwc128_test,          64, 0x6ED613CD, "mwc128",      "mwc128-64_hash", GOOD,  {} },
-{ mwc128_128_test,     128, 0xC1D62836, "mwc128_128",  "mwc128-128_hash", GOOD,  {} },
-{ xxh64_test,           64, 0xA8F45CF8, "xxh64",       "xxh64_hash", POOR,  {} },
+{ xoroshiro_test, 64, 0xA8F45CF8, "xoroshiro",   "xoroshiro128_hash"},
+{ mwc64_test,     64, 0xA8F45CF8, "mwc64",       "mwc64_hash"	    },
+{ mwc128_test,    64, 0x6ED613CD, "mwc128",      "mwc128-64_hash"   },
+{ mwc192_test,   128, 0xC1D62836, "mwc192",  	 "mwc192-128_hash"  },
+{ xxh64_test,     64, 0xA8F45CF8, "xxh64",       "xxh64_hash"       },
 ```
 
 ```sh
 $ ./build/SMHasher mwc128
-$ ./build/SMHasher mwc128_128
+$ ./build/SMHasher mwc192
 $ ./build/SMHasher xxh64
 $ ./build/SMHasher xoroshiro
 ```
