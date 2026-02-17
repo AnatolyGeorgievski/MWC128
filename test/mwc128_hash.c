@@ -136,9 +136,6 @@ static inline uint64_t mix64(uint64_t x){
 	x  =  (x ^ (x >> 33)) * 0xc4ceb9fe1a85ec53u;
 	return x ^ (x >> 33);
 }
-// 0xff51afd7ed558ccdL * 0x4f74430c22a54005L == 1 and
-// 0xc4ceb9fe1a85ec53L * 0x9cb4b2f8129337dbL == 1
-// z = z ^ (z >> 33) transform is self-inverse.
 static uint64_t unmix64(uint64_t z) {
 	z  =  (z ^ (z >> 33)) * 0x9cb4b2f8129337dbL;
 	z  =  (z ^ (z >> 33)) * 0x4f74430c22a54005L;
@@ -164,52 +161,40 @@ static inline uint64_t unmix_lea(uint64_t h) {
   return h;
 }
 #define IV 	0x9e3779b97f4a7c15u
-#define PAD 0x0102030405060708u
+#define PAD 0//0x0102030405060708u
 #define STATE_SZ 2
-uint64_t mwc128_hash(const uint8_t *data, uint64_t len, uint64_t seed0) {
-	uint128_t h;
-	uint64_t *s = (uint64_t *)&h;
+#define unmix unmix_lea
+#define mix mix_lea
+static inline void mwc128_next(uint64_t* state) {
+	const unsigned __int128 t = (unsigned __int128)MWC_A1 * state[0] + state[1];
+	state[0] = t;
+	state[1] = t >> 64;
+}
+static inline void mwc128_align(uint64_t* state, int r) {
+	const unsigned __int128 t = ((unsigned __int128)MWC_A1<<(64-(r*8))) * state[0] + (state[1]>>(r*8));
+	state[0] = t;
+	state[1] = t >> 64;
+}
+void mwc128_hash(const uint8_t *data, uint64_t len, uint64_t seed, uint64_t* result) {
+	uint64_t s[STATE_SZ];
 	for (int i=0; i<STATE_SZ; i++)
-		s[i] = unmix_lea(seed0+=IV);
+		s[i] = unmix(seed+=IV);
 	for (int i=0; i<len>>3; i++){
 		uint64_t d = (*(uint64_t*) data); data+=8;
-		h^= d;
-		h = ((uint64_t)h)*MWC_A1 + (h>>64);
+		s[0] += d;
+		mwc128_next(s);
 	}
 	if (len&7) {
 		int r = len&7;
 		uint64_t d = PAD;
 		__builtin_memcpy(&d, data, r); data+=r;
-		h^= (d);
-		h = ((uint64_t)h)*(MWC_A1<<(64-(r*8))) + (h>>(r*8));
+		s[0]+= (d);
+		mwc128_align(s,r);
 	}
-	return mix_lea(h^(h>>64));
+	result[0] = mix(s[0]^s[1]);
+	mwc128_next(s);
+	result[1] = mix(s[0]^s[1]);
 }
-
-void mwc128_128_hash(const uint8_t *data, uint64_t len, uint64_t seed, uint64_t* result) {
-	// uint128_t h = seed+((uint128_t)0x9e3779b97f4a7c15<<64);// + ((uint128_t)len<<64);
-	// h = ((uint64_t)h)*MWC_A1 + (h>>64);
-	uint128_t h;
-	uint64_t* s = (uint64_t*)&h;
-	for (int i=0; i<STATE_SZ; i++)
-	 	s[i] = unmix_lea(seed+=IV);
-	for (int i=0; i<len>>3; i++){
-		uint64_t d = (*(uint64_t*) data); data+=8;
-		h^= d;
-		h = ((uint64_t)h)*MWC_A1 + (h>>64);
-	}
-	if (len&7) {
-		int r = len&7;
-		uint64_t d = PAD;
-		__builtin_memcpy(&d, data, r); data+=r;
-		h^= d;
-		h = ((uint64_t)h)*(MWC_A1<<(64-(r*8))) + (h>>(r*8));
-	}
-	result[0] = mix_lea(h^(h>>64));
-	h = ((uint64_t)h)*MWC_A1 + (h>>64);// XOF генерация
-	result[1] = mix_lea(h^(h>>64));
-}
-
 #if defined(TEST_MWC128_HASH)
 uint64_t inverse_uint64(uint64_t a) {
     uint64_t x = a;
