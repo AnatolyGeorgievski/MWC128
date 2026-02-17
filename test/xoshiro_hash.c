@@ -102,6 +102,18 @@ static inline uint64_t mix_stafford13(uint64_t h) {
   h ^= h >> 31;
   return h;
 }
+static inline uint64_t unmix_stafford13(uint64_t h) {
+  h ^= h >> 31;
+  h ^= h >> 62;
+  h *= 0x319642B2D24D8EC3ull;
+  h ^= h >> 27;
+  h ^= h >> 54;
+  h *= 0x96de1b173f119089ull;
+  h ^= h >> 30;
+  h ^= h >> 60;
+  return h;
+}
+
 // один шаг Lea's mix
 static inline uint64_t fastmix(uint64_t x) {
 	x *= 0xdaba0b6eb09322e3ull;
@@ -147,24 +159,65 @@ uint64_t xoroshiro_hash(const uint8_t *data, uint64_t len, uint64_t seed) {
 	}
  	return mix_lea(s[0]+s[1]);
 }
+#if 0
 //0xfffecd60, 0xfffeb81b, 0xfffe7369,0xfffe636a, 0xfffe59a7, 0xfffe29b9,0xfffe1d0b
 #define MWC_A0 (uint64_t)0xfffeb81b //    const uint64_t P = (MWC_A0<<32)-1;
-uint64_t mwc64_hash(const uint8_t* data, uint64_t len, uint64_t seed0){
-	uint64_t hash = seed0+(0x9e3779b97f4a7c15<<32);
-	hash = ((uint32_t)hash)*MWC_A0 + (hash>>32);
-    int i;
-    for (i=0; i<len>>2; i++){
+uint64_t mwc64_hash(const uint8_t* data, uint64_t len, uint64_t seed){
+	uint64_t hash;
+		hash = unmix_lea(seed+=IV);
+    for (int i=0; i<len>>2; i++){
         hash+= *(uint32_t*) data; data+=4;
         hash = ((uint32_t)hash)*MWC_A0 + (hash>>32);
     }
-	if (len&3) {
-		int s = len&3;
-		uint32_t d = 0x01020304u;
-		__builtin_memcpy(&d, data, s); data+=s;
+/*
+    if (len&2){
+        hash^= *(uint16_t*) data; data+=2;
+        hash = ((uint16_t)hash)*(MWC_A0<<16) + (hash>>16);
+    }
+    if (len&1){
+        hash^= *(uint8_t*) data; data+=1;
+        hash = ((uint8_t)hash)*(MWC_A0<<24) + (hash>>8);
+    } */
+    if (len&3) {
+		int r = len&3;
+        uint32_t mask = (~0u)>>(32-r*8);
+		uint32_t d = 0;
+		__builtin_memcpy(&d, data, r); data+=r;
 		hash+= d;
-		hash = ((uint32_t)hash)*MWC_A0 + (hash>>32);
+		hash = ((uint32_t)hash<<(32-(r*8)))*(MWC_A0) + (hash>>(r*8));
 	}
-    return mix_stafford13(hash);
+//    hash = ((uint32_t)hash)*MWC_A0 + (hash>>32);
+    return mix_lea(hash);
+}
+#endif
+uint32_t A2 = 0xffe118ab;
+static inline void mwc64r2_next(uint64_t*s, int r) {
+    uint32_t *state = (uint32_t *)s;
+    uint64_t t = (uint64_t)A2*(state[0]<<(32-(r*8))) + (state[3]>>(r*8));
+    state[0] = state[1];
+    state[1] = state[2];
+    state[2] = t;
+    state[3] = t>>32;
+}
+uint64_t mwc64r2_hash(const uint8_t* data, uint64_t len, uint64_t seed){
+	uint64_t s[2];
+		s[0] = unmix_lea(seed+=IV);
+		s[1] = unmix_lea(seed+=IV);
+    int i;
+    for (i=0; i<len>>2; i++){
+        s[0]^= *(uint32_t*) data; data+=4;
+        mwc64r2_next(s, 4);
+    }
+	if (len&3) {
+		int r = len&3;
+		uint32_t d = 0;
+		__builtin_memcpy(&d, data, r); data+=r;
+		s[0]^= d;
+        mwc64r2_next(s, r);
+	}
+    mwc64r2_next(s,4);
+    mwc64r2_next(s,4);
+    return mix_lea(s[0]^s[1]);
 }
 
 
