@@ -55,15 +55,21 @@ static inline uint64_t unmix_stafford13(uint64_t h) {
 #define STATE_SZ 3
 #define unmix unmix_lea
 #define mix mix_lea
-#define MWC_A2 0xffa04e67b3c95d86 // MWC192, B2 = 1<<128
+#define MWC_A2 0xffa04e67b3c95d86u // MWC192, B2 = 1<<128
+
+
+#pragma GCC optimize("unroll-loops")
+//#pragma GCC optimize("omit-frame-pointer")
+
 static inline void mwc192_next(uint64_t* state) {
-	const unsigned __int128 t = (unsigned __int128)MWC_A2 * state[0] + state[2];
+	const uint128_t t = (unsigned __int128)MWC_A2 * state[0] + state[2];
 	state[0] = state[1];
 	state[1] = t;
 	state[2] = t >> 64;
 }
 static inline void mwc192_align(uint64_t* state, int r) {
-	const unsigned __int128 t = ((unsigned __int128)MWC_A2<<(64-(r*8))) * state[0] + (state[2]>>(r*8));
+
+	const uint128_t t = ((unsigned __int128)MWC_A2) * (state[0]<<(64-r*8)) + (state[1]>>(r*8))+((uint128_t)state[2]<<(64-r*8));
 	state[0] = state[1];
 	state[1] = t;
 	state[2] = t >> 64;

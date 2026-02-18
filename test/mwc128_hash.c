@@ -171,7 +171,7 @@ static inline void mwc128_next(uint64_t* state) {
 	state[1] = t >> 64;
 }
 static inline void mwc128_align(uint64_t* state, int r) {
-	const unsigned __int128 t = ((unsigned __int128)MWC_A1<<(64-(r*8))) * state[0] + (state[1]>>(r*8));
+	const unsigned __int128 t = ((unsigned __int128)MWC_A1) * (state[0]<<(64-r*8)) + (state[1]>>(r*8));
 	state[0] = t;
 	state[1] = t >> 64;
 }
@@ -181,19 +181,17 @@ void mwc128_hash(const uint8_t *data, uint64_t len, uint64_t seed, uint64_t* res
 		s[i] = unmix(seed+=IV);
 	for (int i=0; i<len>>3; i++){
 		uint64_t d = (*(uint64_t*) data); data+=8;
-		s[0] += d;
-		mwc128_next(s);
+		s[0] ^= d;
+		mwc128_align(s,8);
 	}
 	if (len&7) {
 		int r = len&7;
 		uint64_t d = PAD;
 		__builtin_memcpy(&d, data, r); data+=r;
-		s[0]+= (d);
+		s[0]^= (d);
 		mwc128_align(s,r);
 	}
 	result[0] = mix(s[0]^s[1]);
-	mwc128_next(s);
-	result[1] = mix(s[0]^s[1]);
 }
 #if defined(TEST_MWC128_HASH)
 uint64_t inverse_uint64(uint64_t a) {

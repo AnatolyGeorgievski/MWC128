@@ -5,11 +5,11 @@ static inline uint64_t rotl(const uint64_t x, int k) {
 	return (x << k) | (x >> (64 - k));
 }
 
-uint32_t A0 = 0xfffebaeb;
+uint32_t A0 = 0xfffe59a7;
 
 static inline uint32_t mwc64r0_next() {
     static uint32_t state[2] = { 1, 0};
-    uint32_t r = state[0];//^state[1];
+    uint32_t r = state[0]^state[1];
     uint64_t t = (uint64_t)A0*state[0] + state[1];
     state[0] = t;
     state[1] = t>>32;
@@ -42,11 +42,13 @@ int main(int argc, char *argv[]) {
 // ------------------ массив кандидатов ------------------
     const uint32_t candidates[] = {
 #if 1
-0xfffecd60,
-0xfffeb81b,
-0xfffe7369,0xfffe636a,
+//0xfffeb81b, //плохо
+//0xfffebaeb,
+0xfffe7369,
 0xfffe59a7,
-0xfffe29b9,0xfffe1d0b
+0xfffe29b9,0xfffe1d0b,
+
+
 #else
 // 0xfffe9e65,0xfffe9835,0xfffe982c,0xfffe9736,0xfffe9664,0xfffe944e,0xfffe930d,0xfffe915a,
 // 0xfffe9001,0xfffe8e66,0xfffe8c9b,0xfffe83aa,0xfffe81f1,0xfffe80ad,0xfffe7fa2,0xfffe7a2c,
@@ -118,10 +120,11 @@ for (int i=0; i<sz; i++){
 		candidates_min_p[i], candidates_max_p[i],  bbattery_TestNames[candidates_min_t[i]]);
 }
 }
-return 0;
+//return 0;
+	A0 = 0xfffe59a7;
 /* Запустить полный тест для выбранных значений */
 	bbattery_Crush(&gen);
-
+return 0;
 	/* The following TestU01 tests give an idea of how the linear degree
 	   increases from low to high bits using the + scrambler. Linearity tests
 	   are failed on the lowest bits, but are passed as we go up. Estimations of

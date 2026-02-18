@@ -5,22 +5,27 @@
 
  */
 #include "TestU01.h"
-
+static inline uint64_t fastmix(uint64_t x) {
+	x = x ^ (x>>32);
+//	x *= 0xdaba0b6eb09322e3ull;
+	x *= 0xda942042e4dd58b5ull;
+    return x ^ (x>>32);
+}
 static inline uint64_t rotl(const uint64_t x, int k) {
 	return (x << k) | (x >> (64 - k));
 }
-
+#define mix(x) (x)
 uint32_t A2 = 0xffe118ab;
-static uint32_t mwc64r2_next() {
+static uint64_t mwc64r2_next() {
 //    const uint32_t A2 = 0xffe118ab;//fffe71fb;
-        static uint32_t state[4] = { ~1, ~1, ~1, 1};
-    uint32_t r = state[2]^state[3];
+        static uint32_t state[4] = { ~1, 12, 1456, 1};
+//    uint32_t r = state[2]^state[3];
     uint64_t t = (uint64_t)A2*state[0] + state[3];
         state[0] = state[1];
-        state[1] = r;
+        state[1] = state[2];//^state[3];
         state[2] = t;
         state[3] = t>>32;
-    return r;
+    return mix(t);
 }
 
 #include <unif01.h>
@@ -31,10 +36,10 @@ static uint32_t mwc64r2_next() {
 
 #define next mwc64r2_next
 static unsigned long u32bits(void *a, void *b) {
-	return next();
+	return (uint32_t)next();
 }
 static double u01(void *a, void *b) {
-	return next() * 0x1.0p-32;
+	return ((uint32_t)next()) * 0x1.0p-32;
 }
 
 void write_state(void *unused) {}
@@ -48,7 +53,7 @@ int main(int argc, char *argv[]) {
 
 // ------------------ массив кандидатов ------------------
     const uint32_t candidates[] = {
-//0xfffcd08f,
+0xfffcd08f,
 0xffe118ab, 
 // 0 — конец
     };
@@ -66,11 +71,11 @@ int main(int argc, char *argv[]) {
 	gen.GetU01 = u01;
 	gen.GetBits = u32bits;
 
-	swrite_Basic = TRUE;
+	swrite_Basic = FALSE;
 /* Цикл выбора параметра A0 по результатам теста SmallCrush
 особое внимание тестам smarsa_BirthdaySpacings и sknuth_MaxOft 
  */
-int count = 1;
+int count = 5;
 while(count-->0) {
 for (int i=0; i<sz; i++){
 	A2 = candidates[i];
@@ -115,7 +120,10 @@ for (int i=0; i<sz; i++){
 /* Запустить полный тест для выбранных значений */
     A2 = 0xffe118ab;
 	bbattery_Crush(&gen);
-
+for (int i=0; i<bbattery_NTests; i++) {
+	printf("%-16s: %8.3g\n", bbattery_TestNames[i], bbattery_pVal[i]);
+}
+	return 0;
 	/* The following TestU01 tests give an idea of how the linear degree
 	   increases from low to high bits using the + scrambler. Linearity tests
 	   are failed on the lowest bits, but are passed as we go up. Estimations of
