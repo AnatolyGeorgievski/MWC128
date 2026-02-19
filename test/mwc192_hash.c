@@ -1,6 +1,5 @@
 /*! __Анатолий М. Георгиевский, ИТМО__, 2026
  */
-
 #include <stdint.h>
 typedef unsigned int __attribute__((mode(TI)))   uint128_t;
 
@@ -51,15 +50,11 @@ static inline uint64_t unmix_stafford13(uint64_t h) {
   return h;
 }
 #define IV 	0x9e3779b97f4a7c15u
-#define PAD 0//0x0102030405060708u
+#define PAD 0x0102030405060708u
 #define STATE_SZ 3
-#define unmix unmix_lea
-#define mix mix_lea
+#define unmix unmix64
+#define mix mix64
 #define MWC_A2 0xffa04e67b3c95d86u // MWC192, B2 = 1<<128
-
-
-#pragma GCC optimize("unroll-loops")
-//#pragma GCC optimize("omit-frame-pointer")
 
 static inline void mwc192_next(uint64_t* state) {
 	const uint128_t t = (unsigned __int128)MWC_A2 * state[0] + state[2];
@@ -67,35 +62,22 @@ static inline void mwc192_next(uint64_t* state) {
 	state[1] = t;
 	state[2] = t >> 64;
 }
-static inline void mwc192_align(uint64_t* state, int r) {
-
-	const uint128_t t = ((unsigned __int128)MWC_A2) * (state[0]<<(64-r*8)) + (state[1]>>(r*8))+((uint128_t)state[2]<<(64-r*8));
-	state[0] = state[1];
-	state[1] = t;
-	state[2] = t >> 64;
-}
 void mwc192_hash(const uint8_t *data, uint64_t len, uint64_t seed, uint64_t* result) {
 	uint64_t s[STATE_SZ];
+	uint64_t d;
 	for (int i=0; i<STATE_SZ; i++)
-		s[i] = unmix(seed+=IV);
+		s[i] += unmix(seed+=IV);
 	for (int i=0; i<len>>3; i++){
-		uint64_t d = (*(uint64_t*) data); data+=8;
-		s[0] ^= d;
+		s[0] ^= (*(uint64_t*) data); data+=8;
 		mwc192_next(s);
 	}
-	if (len&7) {
-		int r = len&7;
-		uint64_t d = PAD;
+	d = PAD;
+	int r = len&7;
+	if (r)
 		__builtin_memcpy(&d, data, r); data+=r;
-		s[0]^= (d);
-		mwc192_align(s, r);
-	}
+	s[0] ^= (d);
 	mwc192_next(s);
-	result[0] = mix(s[0]^s[1]);
+	result[0] = mix(s[0]^s[1])-IV;
 	mwc192_next(s);
-	result[1] = mix(s[0]^s[1]);
-	// mwc192_next(s);
-	// result[2] = mix(s[0]^s[1]);
-	// mwc192_next(s);
-	// result[3] = mix(s[0]^s[1]);
+	result[1] = mix(s[1]^s[2])-IV;
 }

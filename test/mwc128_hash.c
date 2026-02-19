@@ -119,15 +119,6 @@ static inline uint64_t fastmix2(uint64_t x){
 	x ^= x >> 31;
 	return x;
 }
-
-static inline uint64_t wyfinal(uint64_t h) {
-    h ^= h >> 33;
-    h *= 0xff51afd7ed558ccdull;
-    h ^= h >> 33;
-    h *= 0xc4ceb9fe1a85ec53ull;
-    h ^= h >> 33;
-    return h;
-}
 // MurmurHash3 64-bit avalanche mixer
 // http://dx.doi.org/10.1145/2714064.2660195
 // Original MurmurHash3 implementation: https://github.com/aappleby/smhasher/blob/master/src/MurmurHash3.cpp
@@ -146,9 +137,9 @@ typedef unsigned int __attribute__((mode(TI)))   uint128_t;
 // Doug Lea's mixing function, fastmix дважды
 static inline uint64_t mix_lea(uint64_t h) {
   h ^= h >> 32;
-  h *= 0xdaba0b6eb09322e3ull;
+  h *= 0xdaba0b6eb09322e3;
   h ^= h >> 32;
-  h *= 0xdaba0b6eb09322e3ull;
+  h *= 0xdaba0b6eb09322e3;
   h ^= h >> 32;
   return h;
 }
@@ -160,38 +151,59 @@ static inline uint64_t unmix_lea(uint64_t h) {
   h ^= h >> 32;
   return h;
 }
+// https://jonkagstrom.com/mx3/index.html
+// https://github.com/jonmaiga/mx3 32 28 33
+static inline uint64_t mix3(uint64_t x) {
+    const uint64_t M = 0xbea225f9eb34556d;
+    x ^= x >> 32;
+    x *= M;
+    x ^= x >> 29;
+    x *= M;
+    x ^= x >> 32;
+    x *= M;
+    x ^= x >> 29;
+    return x;
+}
+static inline uint64_t unmix3(uint64_t x) {
+    const uint64_t M = 0xdd01f46a7e6ffc65;
+    x ^= x >> 29;
+    x ^= x >> 58;
+    x *= M;
+    x ^= x >> 32;
+    x *= M;
+    x ^= x >> 29;
+    x ^= x >> 58;
+    x *= M;
+    x ^= x >> 32;
+    return x;
+}
 #define IV 	0x9e3779b97f4a7c15u
-#define PAD 0//0x0102030405060708u
+#define PAD 0x0102030405060708u
 #define STATE_SZ 2
 #define unmix unmix_lea
 #define mix mix_lea
-static inline void mwc128_next(uint64_t* state) {
-	const unsigned __int128 t = (unsigned __int128)MWC_A1 * state[0] + state[1];
-	state[0] = t;
-	state[1] = t >> 64;
-}
-static inline void mwc128_align(uint64_t* state, int r) {
-	const unsigned __int128 t = ((unsigned __int128)MWC_A1) * (state[0]<<(64-r*8)) + (state[1]>>(r*8));
-	state[0] = t;
-	state[1] = t >> 64;
+static inline void mwc128_next(uint64_t* state, uint64_t d) {
+	uint128_t  t =*(uint128_t*)state;
+	t+= d;
+	t = (uint128_t)MWC_A1 * (uint64_t)t + (t>>64);
+	*(uint128_t*)state = t;
 }
 void mwc128_hash(const uint8_t *data, uint64_t len, uint64_t seed, uint64_t* result) {
 	uint64_t s[STATE_SZ];
 	for (int i=0; i<STATE_SZ; i++)
 		s[i] = unmix(seed+=IV);
 	for (int i=0; i<len>>3; i++){
-		uint64_t d = (*(uint64_t*) data); data+=8;
-		s[0] ^= d;
-		mwc128_align(s,8);
+		uint64_t d = *(uint64_t*) data; data+=8;
+		mwc128_next(s, d);
 	}
-	if (len&7) {
-		int r = len&7;
-		uint64_t d = PAD;
+	int r = len&7;
+	uint64_t d = PAD;
+	if (r)
 		__builtin_memcpy(&d, data, r); data+=r;
-		s[0]^= (d);
-		mwc128_align(s,r);
-	}
-	result[0] = mix(s[0]^s[1]);
+	mwc128_next(s, d);
+	result[0] = mix(s[0]^s[1])-IV;
+	mwc128_next(s, 0);
+	result[1] = mix(s[0]^s[1])-IV;
 }
 #if defined(TEST_MWC128_HASH)
 uint64_t inverse_uint64(uint64_t a) {
@@ -232,6 +244,8 @@ int main(){
 	printf("Mix_Lea: h=%016llx\n",h);
 	h = unsplitmix64(splitmix64(x));
 	printf("SplitMix:h=%016llx\n",h);
+	h = unmix3(mix3(x));
+	printf("Mix3:    h=%016llx\n",h);
 
 // 0xff51afd7ed558ccdL * 0x4f74430c22a54005L == 1 
 // 0xc4ceb9fe1a85ec53L * 0x9cb4b2f8129337dbL == 1
@@ -257,6 +271,7 @@ if (1){// синтез констант для обратного unMix64
 {"Lea's",       32, 0xdaba0b6eb09322e3, 32, 0xdaba0b6eb09322e3, 32},
 {"SplitMix64",  30, 0xbf58476d1ce4e5b9, 27, 0x94d049bb133111eb, 31},
 {"Avalanche",   33, 0xC2B2AE3D27D4EB4F, 29, 0x165667B19E3779F9, 32},
+{"Mix3",   32, 0xbea225f9eb34556d, 29, 0xbea225f9eb34556d, 32},
 
 	{"Mix01",31 ,0x7fb5d329728ea185 ,27 ,0x81dadef4bc2dd44d ,33},
 	{"Mix02",33	,0x64dd81482cbd31d7	,31	,0xe36aa5c613612997	,31},

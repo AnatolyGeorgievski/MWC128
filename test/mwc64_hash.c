@@ -43,20 +43,72 @@ static uint64_t unmix64(uint64_t z) {
 }
 // Doug Lea's mixing function, fastmix дважды
 static inline uint64_t mix_lea(uint64_t h) {
+  const uint64_t M = 0xdaba0b6eb09322e3;
   h ^= h >> 32;
-  h *= 0xdaba0b6eb09322e3ull;
+  h *= M;
   h ^= h >> 32;
-  h *= 0xdaba0b6eb09322e3ull;
+  h *= M;
   h ^= h >> 32;
   return h;
 }
 static inline uint64_t unmix_lea(uint64_t h) {
+  const uint64_t M = 0xa6f8e26927e132cb;
   h ^= h >> 32;
-  h *= 0xa6f8e26927e132cb;
+  h *= M;
   h ^= h >> 32;
-  h *= 0xa6f8e26927e132cb;
+  h *= M;
   h ^= h >> 32;
   return h;
+}
+// https://jonkagstrom.com/mx3/index.html
+// https://github.com/jonmaiga/mx3 -- 33/28/39
+static inline uint64_t mix3(uint64_t x) {
+    const uint64_t M = 0xbea225f9eb34556d;
+    x ^= x >> 32;
+    x *= M;
+    x ^= x >> 29;
+    x *= M;
+    x ^= x >> 32;
+    x *= M;
+    x ^= x >> 29;
+    return x;
+}
+static inline uint64_t unmix3(uint64_t x) {
+    const uint64_t M = 0xdd01f46a7e6ffc65;
+    x ^= x >> 29;
+    x ^= x >> 58;
+    x *= M;
+    x ^= x >> 32;
+    x *= M;
+    x ^= x >> 29;
+    x ^= x >> 58;
+    x *= M;
+    x ^= x >> 32;
+    return x;
+}
+static inline uint64_t mix_mxmxmx(uint64_t x) {
+    const uint64_t M = 0xbea225f9eb34556d;
+	x *= M;
+	x ^= x >> 33;
+	x *= M;
+	x ^= x >> 29;
+	x *= M;
+	x ^= x >> 39;
+	return x;
+}
+static inline uint64_t murmur64(uint64_t z) {
+  z ^= (z >> 33);
+  z *= 0xff51afd7ed558ccdull;
+  z ^= (z >> 33);
+  z *= 0xc4ceb9fe1a85ec53ull;
+  return z ^ (z >> 33);
+}
+static inline uint64_t degski64(uint64_t z) {
+  z ^= (z >> 32);
+  z *= 0xd6e8feb86659fd93ull;
+  z ^= (z >> 32);
+  z *= 0xd6e8feb86659fd93ull;
+  return z ^ (z >> 32);
 }
 static inline uint64_t rotl(const uint64_t x, int k) {
 	return (x << k) | (x >> (64 - k));
@@ -64,8 +116,17 @@ static inline uint64_t rotl(const uint64_t x, int k) {
 static inline uint64_t rotr(const uint64_t x, int k) {
 	return (x << (64 - k)) | (x >> k);
 }
-#define mix mix_lea//mix_stafford13 -- прямая функция Avalanche mixer
-#define unmix unmix_lea//unmix_stafford13 -- обратная
+// https://mostlymangling.blogspot.com/2018/07/
+// rotl(s0 * 5, 7) * 9;
+static inline uint64_t rrmxmx(uint64_t v) {
+    v ^= rotr(v, 49) ^ rotr(v, 24);
+    v *= 0x9FB21C651E98DF25u;
+    v ^= v >> 28;
+    v *= 0x9FB21C651E98DF25u;
+    return v ^ v >> 28;
+}
+#define mix mix3//mix_stafford13 -- прямая функция Avalanche mixer
+#define unmix unmix3//unmix_stafford13 -- обратная
 #define IV 	0x9e3779b97f4a7c15u
 //#define MWC_A0 0xfffeb81bULL
 #define MWC_A0  0xfffe59a7uLL//eb81bULL

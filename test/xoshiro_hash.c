@@ -154,10 +154,10 @@ uint64_t xoroshiro_hash(const uint8_t *data, uint64_t len, uint64_t seed) {
 	for (int i=0; i<STATE_SZ; i++)
 		s[i] = unmix_lea(seed+=IV);
 	for (int i=0; i<len; i++) {
-		s[0] ^= *data++;
-		xoroshiro128_next(s);
+		s[0] ^= *(uint8_t*)data; data+=1;
+		xoroshiro128p_next(s);
 	}
- 	return mix_lea(s[0]+s[1]);
+ 	return mix_lea(s[0]+s[1])-IV;
 }
 #if 0
 //0xfffecd60, 0xfffeb81b, 0xfffe7369,0xfffe636a, 0xfffe59a7, 0xfffe29b9,0xfffe1d0b
