@@ -125,8 +125,8 @@ static inline uint64_t rrmxmx(uint64_t v) {
     v *= 0x9FB21C651E98DF25u;
     return v ^ v >> 28;
 }
-#define mix mix3//mix_stafford13 -- прямая функция Avalanche mixer
-#define unmix unmix3//unmix_stafford13 -- обратная
+#define mix mix_lea//mix_stafford13 -- прямая функция Avalanche mixer
+#define unmix unmix_lea//unmix_stafford13 -- обратная
 #define IV 	0x9e3779b97f4a7c15u
 //#define MWC_A0 0xfffeb81bULL
 #define MWC_A0  0xfffe59a7uLL//eb81bULL
@@ -137,7 +137,22 @@ static inline uint64_t next(uint64_t x, int r){
 }
 uint64_t mwc64_hash(uint64_t hash, uint8_t* data, size_t data_len){
     hash = unmix(hash+IV);
-    for (int i=0; i<data_len>>2; i++){
+#if 0
+    for (int i=0; i<data_len>>3; i++){
+        uint64_t d = *(uint64_t*) data; data+=8;
+        if (__builtin_uaddl_overflow (hash, d, &hash))
+            hash -= MWC_PRIME;
+        // if(hash<d) hash -= MWC_PRIME;
+        // else
+        // if(hash>=MWC_PRIME) hash -= MWC_PRIME;
+        hash = next(hash, 32);
+        hash = next(hash, 32);
+    }
+    if (data_len&4)
+#else
+    for (int i=0; i<data_len>>2; i++)
+#endif
+    {
         hash+= *(uint32_t*) data; data+=4;
         hash = next(hash, 32);
     }
@@ -151,21 +166,13 @@ uint64_t mwc64_hash(uint64_t hash, uint8_t* data, size_t data_len){
     }
     return mix(hash)-IV;
 }
-/*! Слияние хешей двух сегментов с коррекцией переполнения
-    по модулю MWC_PRIME
- */
-uint64_t mwc64_merge(uint64_t h1, uint64_t h2, int n){
-    h1 = unmix(h1+IV);
-    h2 = unmix(h2+IV);
-    h1 += h2;
-    if (h1<h2) h1 -= MWC_PRIME;
-    else
-    if (h1>=MWC_PRIME) h1 -= MWC_PRIME;
-    return mix(h1)-IV;
+static inline uint64_t mwc_addm(uint64_t a, uint64_t b, uint64_t M){
+    a += b;
+    if (a<b || a>=M) 
+        a -= M;
+    return a;
 }
-
-/*! \brief Модульное умножение с неполным редуцированием 
-*/
+/*! \brief Модульное умножение с неполным редуцированием */
 static inline uint64_t mwc_mulm(uint64_t a, uint64_t b, uint64_t M)
 {	
 	unsigned __int128 ac;
@@ -174,6 +181,27 @@ static inline uint64_t mwc_mulm(uint64_t a, uint64_t b, uint64_t M)
 	if (ac>>64) ac -= M;
 //	if ((uint64_t)ac>= M) ac -= M;
 	return ac;
+}
+static inline uint64_t mwc_maddm(uint64_t a, uint64_t b, uint64_t c, uint64_t M)
+{	
+	unsigned __int128 ac;
+	ac = (unsigned __int128)a*b + c;
+	ac-= (((ac>>64)*MWC_INV + ac)>>64)*M;
+	if (ac>>64) ac -= M;
+//	if ((uint64_t)ac>= M) ac -= M;
+	return ac;
+}
+/*! Слияние хешей двух сегментов с коррекцией переполнения
+    по модулю MWC_PRIME
+ */
+uint64_t mwc64_merge(uint64_t h1, uint64_t h2, uint64_t jump){
+    h1 = unmix(h1+IV);
+    h2 = unmix(h2+IV);
+    if (jump)
+        h1 = mwc_maddm(h1, jump, h2, MWC_PRIME);
+    else
+        h1 = mwc_addm(h1, h2, MWC_PRIME);
+    return mix(h1)-IV;
 }
 /*! \brief Модульнуя операция возведения в степень с неполным редуцированием */
 static uint64_t mwc_powm(uint64_t a, uint64_t e, uint64_t M)

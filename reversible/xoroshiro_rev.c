@@ -84,7 +84,6 @@ uint64_t xoroshiro128p_prev()
     const uint64_t r = s0 + s1;
 	return r;
 }
-
 int main (){
     int const nr = 8;
     int i;

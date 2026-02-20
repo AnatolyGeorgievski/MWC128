@@ -63,7 +63,7 @@ int powm_tst2(const uint64_t* p,  int size){
 	uint64_t s[MP_SIZE];
 	mp_mov(a, p);
 	mp_clr(b); b[0] = 2;
-	a[0] -=1;// переноса не предвидется
+	a[0] -=1;// переноса не предвидится
 	for(int i=0; i< size; i++){
 		mp_powm(s, b, a, p);
 		if (!mp_equ_ui(s, 1u)) return 0;
@@ -71,11 +71,27 @@ int powm_tst2(const uint64_t* p,  int size){
 	}
 	return 1;
 }
+bool has_max_order(uint64_t x) {
+    int count = 61; // 2^61
+    do { 
+		x = x * x; // x ← x² mod 2⁶⁴
+		if (x == 1) return false; 
+	} while (--count);
+    return true;
+}
+bool has_max_order32(uint32_t x) {
+    int count = 29;
+    do { 
+		x = x * x; // x ← x² mod 2^{32}
+		if (x == 1) return false; 
+	} while (--count);
+    return true;
+}
 int main(){
 	genprimes();
 	uint64_t a;
 	uint64_t p[MP_SIZE] = {-1, -1};
-if (0) { // генерация констант для MWC128
+if (1) {// генерация констант для MWC128
 	a = UINT64_C(0xffebb71d94fcdaf9);
 	p[MP_SIZE-1]  = a-1;
 	if (powm_tst2(p, 25)){
@@ -96,6 +112,7 @@ if (0) { // генерация констант для MWC128
 		if (powm_tst2(p, 5))// тест Ферма для первых 5 простых чисел
 		//if ((a%3)==0) -- все делятся на 3
 		//if (rem(p, 24)==23) -- все делятся
+		if (has_max_order(a)) // максимальный порядок группы {Z/2^{64}Z}+
 		if (is_prime((~a)-1, prime_size)) // -- мой тест, выбор чисел A может быть основан на множесте простых чисел
 		if (mp_is_prime(p, prime_size))
 		{// printf("!");
@@ -133,7 +150,8 @@ if (1) {// генерация констант для MWC64r2
 		if (powm_tst2(p, 5))// тест Ферма для первых 5 простых чисел
 		//if ((a%3)==0) -- все делятся на 3
 		//if (rem(p, 24)==23) -- все делятся
-		if (is_prime((~(a>>32))-1, prime_size)) // -- мой тест, выбор чисел A может быть основан на множесте простых чисел
+		//if (has_max_order32(a>>32)) // максимальный порядок группы {Z/2^{64}Z}+
+		if (is_prime((~(a>>32))-1, prime_size)) // -- мой тест, выбор чисел A может быть основан на множестве простых чисел
 		if (mp_is_prime(p, prime_size))
 		{// printf("!");
 			mp_shr(p,1);
