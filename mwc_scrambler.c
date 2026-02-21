@@ -25,10 +25,15 @@ static inline int hamming_weight64(uint64_t x) {
 static inline int hamming_weight32(uint32_t x) {
     return __builtin_popcount(x);
 }
-const static uint64_t gamma32 = 0x9e3779b9;
-const static uint64_t gamma = 0x9e3779b97f4a7c15;// ~0, 1,3,5,7,11,13, .... (~0<<32) + 1, 
+// Weyl sequence: d+=362437; period 2^{32}
+const static uint64_t gamma32 = 362437;
+const static uint64_t gamma = ~0;// ~0, 1,3,5,7,11,13, .... (~0<<32) + 1, 
+const static uint64_t gamma_ms = 0xb5ad4eceda1ce2a9;
+// 0x9e3779b97f4a7c15
 // 0xc45a11730cc8ffe3
 // 0x2b13b77d0b289bbd
+// 0xb5ad4eceda1ce2a9 -- https://arxiv.org/pdf/1704.00358 Middle Square
+// 0x278c5a4d8419fe6b --
 // 0x40ead42ca1cd0131
 // 0xBB67AE8584CAA73B
 // Сдвиги 27–33–27, 32–29–32, 33–28–31 — самые частые и удачные.
@@ -41,6 +46,11 @@ static uint64_t gray_next(){
 	static uint64_t x = 0;
 	x+=gamma;
 	return x^rotl(x,63);
+}
+static uint64_t scrambler_xor(){
+	static uint64_t x = 0;
+	x+=gamma;
+	return x^x>>32;
 }
 static uint64_t gray32R_next(){
 	static uint32_t x = 0;
@@ -195,16 +205,18 @@ static uint64_t xorshift64s_A3_next() {
 static uint64_t xorshift64s1_A3_next() {
 	static uint64_t x = 0;
 	x+=gamma;
-	x ^= x >> 19; // c
-	x ^= x << 29; // b
 	x ^= x >>  8; // a
-	return x * UINT64_C(0xd605bbb58c8abbfd);
+	x ^= x << 29; // b
+	x ^= x >> 19; // c
+//	x *= UINT64_C(0xd605bbb58c8abbfd);
+	return x;
 }
 // A( 8, 29, 19) - 
 // A(11, 31, 18) - хороший миксер A0,A2 const uint64_t M_PCG = 0x5851F42D4C957F2D;
 
 //const static uint64_t MC = 0xdaba0b6eb09322e3u;// Avalanche mixer multiplier
-const static uint64_t MC = 0xffebb71d94fcdaf9ull;// Avalanche mixer multiplier
+const static uint64_t MC = 0xda942042e4dd58b5u;// Avalanche mixer Lehmer multiplier
+//const static uint64_t MC = 0xffebb71d94fcdaf9ull;// Avalanche mixer multiplier
 static uint64_t fastmix_next(){
 	static uint64_t x = 0;
 	uint64_t y = (x+=gamma);
@@ -218,18 +230,49 @@ static uint64_t lea_next(){
 	y = (y ^ y>>32) * MC;
 	return (y ^ y>>32);
 }
+static uint64_t mwc64s_mix(){
+	const  uint64_t A0 = 0x7ff8c871;
+	static uint64_t x = 0;
+	uint64_t y = (x += gamma);
+	y = (y>>32) - (uint32_t)y*A0;
+	y = (y>>32) - (uint32_t)y*A0;
+	return y;
+}
+static uint64_t mwc64_mix() {
+	const  uint64_t A0 = 0xfffebaeb;
+	static uint64_t x = 0;
+	uint64_t y = (x += gamma);
+	y = (y>>32) + (uint32_t)y*A0;
+	y = (y>>32) + (uint32_t)y*A0;
+	return y;
+}
+// da942042e4dd58b5 ..yes 8b838d0354ead59d
+static inline uint64_t mix_1584() {
+ 	static uint64_t x = 0;
+	uint64_t h = (x+=gamma);
+  h ^= h >> 32;
+  h *= 0xda942042e4dd58b5;
+  h ^= h >> 32;
+  h *= 0xda942042e4dd58b5;
+  h ^= h >> 32;
+  return h;
+}
 static uint64_t splitmix64() {
 	static uint64_t seed = 0;
-    uint64_t z = (seed += 0x9e3779b97f4a7c15);
+    uint64_t z = (seed += gamma);
     z = (z ^ z>>30) * 0xbf58476d1ce4e5b9;
     z = (z ^ z>>27) * 0x94d049bb133111eb;
     return z ^ z>>31;
 }
-static uint64_t scrambler_mwc64() {
-	const  uint64_t A0 = 0xfffebaebULL;
-	static uint64_t state = 0;
-	uint64_t z = (state += 0x9e3779b97f4a7c15);
-	return A0*(uint32_t)(state) + (state>>32);
+static inline uint64_t mix_stafford13() {
+	static uint64_t seed = 0;
+    uint64_t h = (seed += gamma);
+   h ^= h >> 30;
+  h *= 0xbf58476d1ce4e5b9ull;
+  h ^= h >> 27;
+  h *= 0x94d049bb133111ebull;
+  h ^= h >> 31;
+  return h;
 }
 // https://github.com/MersenneTwister-Lab/XSadd/blob/master/xsadd.h
 static uint32_t xsadd_next()
@@ -259,7 +302,18 @@ static uint64_t xorshift128p_next() {
 	s[1] = s1 ^ (s1 >> 18) ^ s0 ^ (s0 >> 5); // b, c
 	return result;
 }
-
+static uint64_t msws64_next() {
+	static uint64_t x = 0, w1 = 0, s1 = 0xb5ad4eceda1ce2a9;
+	static uint64_t y = 0, w2 = 0, s2 = 0x278c5a4d8419fe6b;
+	x = rotl(x,32); x = x*x + (w1 += s1); 
+	y = rotl(y,32); y = y*y + (w2 += s2); 
+	return x^y;
+}
+static uint64_t ms64_mix() {
+	static uint64_t x = 0, w = 0;
+	x = x*x + (w += gamma); x = rotl(x,32); 
+	return x;
+}
 /*! \brief Генерация псевдо-случайного числа. Один шаг алгоритма */
 #define MWC_A0
 uint64_t a0 = 0xfffeb81bULL;
@@ -354,14 +408,48 @@ uint64_t xoroshiro128ss_next()
 	s[1] = rotl(s1, 37); // c
 	return r;
 }
+
+uint64_t lehmer64_next() {
+	static __uint128_t state=0;
+    state *= 0xda942042e4dd58b5ULL;   // фиксированный множитель (хороший 64-бит → 128-бит)
+    return (uint64_t)(state >> 64);   // берём старшие 64 бита как результат
+}
+uint64_t lehmer64_mix() {
+	static uint64_t s = 0;
+	static __uint128_t x = 0;  // 128-битное состояние (обычно глобальная переменная)
+    x = x * 0xda942042e4dd58b5uLL + (gamma_ms);   // фиксированный множитель (хороший 64-бит → 128-бит)
+    return (uint64_t)x;   // берём старшие 64 бита как результат
+}
+// https://github.com/wangyi-fudan/wyhash
+uint64_t wyrand(uint64_t *seed) {
+    *seed += 0x60bee2bee120fc15ULL;
+    __uint128_t tmp = (__uint128_t)(*seed) * 0xa3b195354a39b70dULL;
+    return (uint64_t)(tmp >> 64) ^ (uint64_t)tmp;
+}
+// wyhash (автор Wang Yi, ~2019 год, последняя стабильная версия — final3/final4)
+static uint64_t wyrand_mix() {
+	static uint64_t s = 0;
+    s += gamma;//0x60bee2bee120fc15ULL;
+    __uint128_t y = s * (__uint128_t)0xa3b195354a39b70dULL;
+    return y;//^(y >> 64);
+}
+// https://github.com/vnmakarov/mum-hash
+static uint64_t _mum_primes[] = {
+  0x9ebdcae10d981691, 0x32b9b9b97a27ac7d, 0x29b5584d83d35bbd, 0x4b04e0e61401255f,
+  0x25e8f7b1f1c9d027, 0x80d4c8c000f3e881, 0xbd1255431904b9dd, 0x8a3bd4485eee6d81,
+  0x3bc721b2aad05197, 0x71b1a19b907d6e33, 0x525e6c1084a8534b, 0x9e4c2cd340c1299f,
+  0xde3add92e94caa37, 0x7e14eadb1f65311d, 0x3f5aa40f89812853, 0x33b15a3b587d15c9,
+};
+
 #include <math.h>
 static inline double difficulty(uint64_t x) {
 	return 1/((double)x+0.5);
 }
-double dif_test(const char* name, uint64_t (*next)(), double *sum) {
-	#define M 32
+#define M 32
+double dif_test(const char* name, uint64_t (*next)(), uint64_t *sum, int Nr) {
 	#define DIM 3
-	const int m = 1;	  // группировка значений по разрядам 0:1, 1:1.5=3/2, 2:1.875= 15/8; 3:255/128, m: (2^2^m-1)/2^{2^m-1}
+	const int m = 0;	  // группировка значений по разрядам 0:1, 1:1.5=3/2, 2:1.875= 15/8; 3:255/128, m: (2^2^m-1)/2^{2^m-1}
+	double r = 1;
 	long double diffi = 0; 		// суммарная сложность
     uint64_t count = 1uLL<<32; 	// число отсчетов в тесте
 	double hist[M] = {0}; // распределение сложности по категориям
@@ -380,36 +468,45 @@ double dif_test(const char* name, uint64_t (*next)(), double *sum) {
 	}
 	if (sum) {// суммирование по категориям
 		for(int i=0;i<M; i++)
-			sum[i] += hist[i];
+			sum[i] += v[i];
 	}
 	if (1)  { // вывод подробного отчета по категориям
-		printf ("##:  difficulty | frequency | hashrate \n");
+		printf ("##:  difficulty | frequency | hashrate | avg.hrate |\n");
 		for(int i=0;i<M>>m; i++)
 			if (v[i]!=0) {
-				double hr = v[i]/(double)(1uLL<<(31 -(i<<m)));
-				printf ("%2d: %12.3f| %-10u| %f\n", i, hist[i], v[i], hr);
+				//double P =(double)1.0/(1uLL<<(31 -(i<<m)));
+				int ex = -(31 -(i<<m));
+				double hr, ar = 0;
+				hr = __builtin_ldexp(  v[i],ex);
+				double r1 = (M>>m)-1 == i?2:r;
+				int ok;
+				if (sum) {
+					ar = __builtin_ldexp(sum[i],ex)/(Nr+1);
+					// KS statistics max(D+,D-)\sqrt(n) <= eps
+					ok = fabs(ar - r1)* sqrt(__builtin_ldexp((Nr+1),-ex)) <= r1;
+				} else
+					ok = fabs(hr - r1)<= r1* sqrt(__builtin_ldexp(  1,ex));
+				printf ("%2d: %12.3f| %-10u| %8.6f | %9.7f |%s\n", i, hist[i], v[i], hr, ar, ok?"":" fail");
 			}
 	}
 	return diffi; // суммарная сложность
 }
 #if defined(TEST_SCRAMBLER)
 int main(){
-// 32-bit
-    uint64_t pow32 = UINT64_C(1) << 32;
-    uint32_t gamma32 = (uint32_t) floor( pow32 * (sqrt(5.0) - 1.0) / 2.0 );
-    printf("32-bit: 0x%08X\n", gamma32);           // → 0x9E3779B9
-
     // 64-bit
-    long double pow64 = ldexpl(1.0L, 64);          // 2^64 в long double
+    long double pow64 = ldexp(1.0, 64);          // 2^64 в double
     uint64_t gamma64 = (uint64_t) floorl( pow64 * (sqrtl(5.0L) - 1.0L) / 2.0L );
     printf("64-bit: 0x%016llX\n", gamma64);        // → 0x9E3779B97F4A7C15
     struct {
         const char* name;
         uint64_t (*next)();
+		double diff;
+		uint64_t sum[M];
     } gen[] = {
-        {"Counter", count_next},
+//        {"Counter", count_next},
 //        {"Gray-64L code", gray_next},
-        {"Gray-32R code", gray32R_next},
+//        {"XOR mix", scrambler_xor},
+//        {"Gray-32R code", gray32R_next},
 //        {"Gray-32L code", gray32L_next},
 #if 0		
         {"Scrambler 1-32", scrambler_1_32_next},
@@ -439,12 +536,18 @@ int main(){
         {"Scrambler +", scrambler_p_next},
 #endif
 //		{"SplitMix64", splitmix64},
-		{"Doug Lea's", lea_next},
-		{"MWC64 mix", scrambler_mwc64},
-		{"XorShift64 mix", xorshift64s_next},
-		{"XS-PCG-mixer", xorshift64s_A1_next},
-		{"XS-LCG-mixer", xorshift64s_A3_next},
-		{"XS-LCG2-mixer", xorshift64s1_A3_next},
+//		{"Doug Lea's", lea_next},
+//		{"Stafford 13", mix_stafford13},
+		{"MWC64 mix",  mwc64_mix},
+		{"mwc64s-mix", mwc64s_mix},
+//		{"MidSquare", msws64_next},
+//		{"MidSquare mix", ms64_mix},
+		//{"XorShift64 mix", xorshift64s_next},
+		// {"XS-PCG-mixer", xorshift64s_A1_next},
+		// {"XS-LCG-mixer", xorshift64s_A3_next},
+//		{"XorShift mix", xorshift64s1_A3_next},
+		{"Lehmer64 mix", lehmer64_mix},
+		{"WYrand mix", wyrand_mix},
 //        {"MWC64x", mwc64x_next},
 //        {"MWC128", mwc128_next},
 //        {"MWC128x1b", mwc128x1b_next},
@@ -463,8 +566,8 @@ int main(){
 	for (int n=0;n<512;n++) {
 		printf ("----------------------------------%d\n", n);
         for (int k=0;k<n_tests;k++) {
-            x = dif_test(gen[k].name, gen[k].next, NULL);
-            printf("|%-16s| %-9.4g\n", gen[k].name, x);
+            gen[k].diff += dif_test(gen[k].name, gen[k].next, gen[k].sum, n);
+            printf("%-16s| %-9.4g\n", gen[k].name, gen[k].diff);
         }
 	}
   }

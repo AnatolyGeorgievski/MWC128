@@ -87,6 +87,7 @@ https://pubsonline.informs.org/doi/10.1287/opre.47.1.159
 (https://www.iro.umontreal.ca/~lecuyer/myftp/papers/goodcomb.pdf)
 */
 const uint64_t GR  = 0x9e3779b97f4a7c15; // golden ratio
+const uint64_t WY  = 0x60bee2bee120fc15; // wyrand increment
 const uint64_t M32 = 2685821657736338717u; 
 const uint64_t M8  = 1181783497276652981u;
 const uint64_t M2  = 8372773778140471301u;
@@ -94,6 +95,8 @@ const uint64_t M2  = 8372773778140471301u;
 const uint64_t M_PCG = 0x5851F42D4C957F2D;
 const uint64_t M_LXM = 0xd1342543de82ef95;
 const uint64_t M_LXM2= 0xd605bbb58c8abbfd;
+const uint64_t M_LEH = 0xda942042e4dd58b5;// Lehmer64 multiplier
+const uint64_t M_WYH = 0xa3b195354a39b70d;// WYhash multiplier
 bool has_max_order(uint64_t x) {
     int count = 61; // 2^61
     do { 
@@ -141,6 +144,8 @@ int main (){
 	printf("%016llx ..%s\n", M_PCG, ok?"yes":"no");
 	printf("%016llx ..%-3s %016llx\n", M_LXM, has_max_order(M_LXM)?"yes":"no", inverse_u64(M_LXM));
 	printf("%016llx ..%-3s %016llx\n", M_LXM2, has_max_order(M_LXM2)?"yes":"no", inverse_u64(M_LXM2));
+	printf("%016llx ..%-3s %016llx\n", M_LEH, has_max_order(M_LEH)?"yes":"no", inverse_u64(M_LEH));
+	printf("%016llx ..%-3s %016llx\n", M_WYH, has_max_order(M_WYH)?"yes":"no", inverse_u64(M_WYH));
 	printf("%016llx ..%s\n", GR, has_max_order(GR)?"yes":"no");
 	printf("%016llx ..%s\n", M2, has_max_order(M2)?"yes":"no");
 	printf("%016llx ..%s\n", M8, has_max_order(M8)?"yes":"no");
@@ -203,7 +208,7 @@ int main (){
 	printf("Prime1 Prime2\n");
 	uint64_t g = M_LXM2;
 	x=1;
-	for (int i=0; i<0xFFFF; i++){
+	if (0) for (int i=0; i<0xFFFF; i++){
 		x = x*g;
 		p1 = inverse_u64(x);
 		if ((x>>62) ==3 && (int64_t)p1 < 0 && has_max_order(x) && has_max_order(p1)){

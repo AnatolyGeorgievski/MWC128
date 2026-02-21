@@ -134,6 +134,15 @@ static uint64_t unmix64(uint64_t z) {
 }
 #define MWC_A1 		(uint128_t)0xffebb71d94fcdaf9ull // MWC128  число A1, B1 = (1<<64)
 typedef unsigned int __attribute__((mode(TI)))   uint128_t;
+static inline uint64_t mix_1584(uint64_t h) {
+  h ^= h >> 32;
+  h *= 0xd605bbb58c8abbfd;
+  h ^= h >> 29;
+  h *= 0xad4d2974b2f97955;
+  h ^= h >> 32;
+  return h;
+}
+
 // Doug Lea's mixing function, fastmix дважды
 static inline uint64_t mix_lea(uint64_t h) {
   h ^= h >> 32;
@@ -181,7 +190,7 @@ static inline uint64_t unmix3(uint64_t x) {
 #define PAD 0x0102030405060708u
 #define STATE_SZ 2
 #define unmix unmix_lea
-#define mix mix_lea
+#define mix mix_1584
 static inline void mwc128_next(uint64_t* state, uint64_t d) {
 	uint128_t  t =*(uint128_t*)state;
 	t+= d;

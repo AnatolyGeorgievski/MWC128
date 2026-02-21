@@ -441,6 +441,8 @@ Journal of Statistical Software, 11, 5, Aug., 1–5. coden:JSSOBK (https://doi.o
 [4] Guy L. Steele Jr. and Sebastiano Vigna. 2021. LXM: better splittable pseudorandom number generators (and almost as fast). 
 Proc. ACM Program. Lang. 5, OOPSLA, Article 148 (October 2021), 31 pages. (https://doi.org/10.1145/3485525)
 
+(https://gitlab.com/fwojcik/smhasher3)
+
 
 **Сборка теста**
 
