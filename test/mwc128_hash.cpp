@@ -45,9 +45,9 @@ static inline void mwc128_next(uint64_t* state, uint64_t d, int r) {
 template <bool bswap>
 void mwc128_hash(const void *in, size_t len, uint64_t seed, void* out) {
     const uint8_t* data = (const uint8_t*)in;
-	uint64_t s[STATE_SZ] = {IV, 1};
+	uint64_t s[STATE_SZ];
     s[0] = _mum(seed += IV, UINT64_C(0x82d2e9550235efc5));
-    s[1] = _mum(seed += IV, UINT64_C(0x82d2e9550235efc5));
+    s[1] = IV;//_mum(seed += IV, UINT64_C(0x82d2e9550235efc5));
     unsigned int blocks = (len>>3);
 	for (unsigned int i=0; i<blocks; i++){
 		uint64_t d = GET_U64<false>(data, 0); data+=8;
@@ -59,7 +59,7 @@ void mwc128_hash(const void *in, size_t len, uint64_t seed, void* out) {
         d &= ~0uLL>>(64-r*8);
         mwc128_next(s, d, r*8);
     } 
-    uint64_t d = _mum(s[0]^s[1], UINT64_C(0xa3b195354a39b70d))-IV;
+    uint64_t d = _mum(s[0]^s[1], UINT64_C(0xa3b195354a39b70d));
     PUT_U64<bswap>(d, (uint8_t *)out,  0);
 }
 #define MWC_A2 0xffa04e67b3c95d86u // MWC192, B2 = 1<<128
