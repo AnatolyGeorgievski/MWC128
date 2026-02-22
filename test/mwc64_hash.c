@@ -182,6 +182,7 @@ static inline uint64_t mwc_mulm(uint64_t a, uint64_t b, uint64_t M)
 //	if ((uint64_t)ac>= M) ac -= M;
 	return ac;
 }
+/*! \brief Модульное умножение со сложением и неполным редуцированием */
 static inline uint64_t mwc_maddm(uint64_t a, uint64_t b, uint64_t c, uint64_t M)
 {	
 	unsigned __int128 ac;
@@ -190,6 +191,18 @@ static inline uint64_t mwc_maddm(uint64_t a, uint64_t b, uint64_t c, uint64_t M)
 	if (ac>>64) ac -= M;
 //	if ((uint64_t)ac>= M) ac -= M;
 	return ac;
+}
+/*! \brief Модульное "схлопывание" используются две сдвиговые константы на 
+    дистанцию w={64*n} и w={64*n + 64}
+   ${x, c} = x\cdot j_1 + c\cdot j_2$ аналогично операции folding в CRC
+
+   Редуцирование по M = 2^{64} - 2^{32} +1, 
+    {x,c} => x + ({c<<32} - c)
+   */
+static mwc_foldm(uint64_t *s, uint64_t d1, uint64_t d2, uint64_t j1, uint64_t j2){
+    unsigned __int128 t = s[0]*(unsigned __int128)j1 + s[1]*(unsigned __int128)j1;
+    s[0] = t;
+    s[1] = t>>64;
 }
 /*! Слияние хешей двух сегментов с коррекцией переполнения
     по модулю MWC_PRIME
