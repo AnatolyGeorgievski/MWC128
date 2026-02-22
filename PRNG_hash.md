@@ -221,13 +221,13 @@ static inline void xoroshiro128_next(uint64_t* s) {
 
 **Генераторы PRNG на базе ARX-структур**
 
-За основу берется четверть раунда ChaCha20 или Salsa20 минимальное число раундов 8.
+За основу берется четверть раунда ChaCha20 или Salsa20, минимальное число раундов 8.
 ```c
-static inline void half_qr(uint32_t s[4], int rot) {
+static inline void half_qr(uint32_t s[4]) {
     uint32_t a = s[0], b = s[1], c = s[2], d = s[3];
 
-    a += b; d = ROTL32(d^a, 16 + rot);
-    c += d; b = ROTL32(b^c, 12 + rot);
+    a += b; d = ROTL32(d^a, R1);
+    c += d; b = ROTL32(b^c, R2);
 
     // перестановка — один из лучших вариантов {3,2,0,1}
     uint32_t t[4] = {a, b, c, d};
@@ -237,6 +237,7 @@ static inline void half_qr(uint32_t s[4], int rot) {
     s[3] = t[2];    // c
 }
 ```
+В результате получается алгоритм подобный [SipHash](https://www.aumasson.jp/siphash/siphash.pdf)
 
 **XMXMX-Mixer parameters**
 
