@@ -97,6 +97,7 @@ const uint64_t M_LXM = 0xd1342543de82ef95;
 const uint64_t M_LXM2= 0xd605bbb58c8abbfd;
 const uint64_t M_LEH = 0xda942042e4dd58b5;// Lehmer64 multiplier
 const uint64_t M_WYH = 0xa3b195354a39b70d;// WYhash multiplier
+const uint64_t M_CYH = 0xb492b66fbe98f273;//CityHash
 bool has_max_order(uint64_t x) {
     int count = 61; // 2^61
     do { 
@@ -146,6 +147,7 @@ int main (){
 	printf("%016llx ..%-3s %016llx\n", M_LXM2, has_max_order(M_LXM2)?"yes":"no", inverse_u64(M_LXM2));
 	printf("%016llx ..%-3s %016llx\n", M_LEH, has_max_order(M_LEH)?"yes":"no", inverse_u64(M_LEH));
 	printf("%016llx ..%-3s %016llx\n", M_WYH, has_max_order(M_WYH)?"yes":"no", inverse_u64(M_WYH));
+	printf("%016llx ..%-3s %016llx\n", M_CYH, has_max_order(M_CYH)?"yes":"no", inverse_u64(M_CYH));
 	printf("%016llx ..%s\n", GR, has_max_order(GR)?"yes":"no");
 	printf("%016llx ..%s\n", M2, has_max_order(M2)?"yes":"no");
 	printf("%016llx ..%s\n", M8, has_max_order(M8)?"yes":"no");

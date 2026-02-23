@@ -487,11 +487,17 @@ uint128_t crt_mix(uint64_t a1, uint64_t a2) {
 
 **Результаты теста SMHasher3** 
 
-[SMHasher3](https://gitlab.com/fwojcik/smhasher3) -- Существенно улучшено быстродействие, улучшено тестирование, более строгие политики по добавлению хэш-функций. Внесены существенные доработки тестов. Исторически следует отметить три проекта: оригинальный [Appleby/SMHasher](#) и два проекта базирующихся на оригинальном тесте [rurban/SMHasher](#) и [SMHasher3](https://gitlab.com/fwojcik/smhasher3). По качеству теста мы выбираем `SMHasher3` для отладки хэш-функций и представления сравнительных результатов.
+[SMHasher3](https://gitlab.com/fwojcik/smhasher3) -- Существенно улучшено быстродействие, улучшено тестирование, более строгие политики по добавлению хэш-функций. Внесены существенные доработки тестов. Исторически следует отметить три проекта. Оригинальный [Austin
+Appleby/SMHasher](https://github.com/aappleby/smhasher) и два проекта базирующихся на оригинальном тесте [Reini Urban/SMHasher](https://github.com/rurban/smhasher) и [Frank J. T. Wojcik/SMHasher3](https://gitlab.com/fwojcik/smhasher3). По качеству теста мы выбираем `SMHasher3` для отладки хэш-функций и представления сравнительных результатов.
 
-* [MWC128-hash для теста SMHasher](test/mwc128_hash.cpp) 
-* результаты [MWC128-64 = 188/188 passed](test/mwc128-64-smhasher3.txt)
+Исходные коды для теста SMHasher3
+* [MWC128-hash 64-bit](test/mwc128_hash.cpp) 
+* [XXH64-hash 64-bit](test/xxh64.cpp) 
 
+| Hash      | Result | Tests  | B/cycle | GiB/sec<!-- @ 3.5 GHz -->|SpeedSmall |
+|-----------|--------|--------|--------:|--------:|---|
+| [MWC128-64](test/mwc128-64-smhasher3.txt) | PASS   | 188/188  | 2.33  |  7.60| 24.89 | без векторизации цикла
+| [xxh64-64](test/xxh64-64-smhasher3.txt)   | FAIL   | 179/188  | 6.19  | 20.17| 33.07 | провальные тесты связаны с отсутствием миксера на SEED
 
 **Векторные расширения**
 
@@ -509,11 +515,7 @@ Journal of Statistical Software, 11, 5, Aug., 1–5. coden:JSSOBK (https://doi.o
 [4] Guy L. Steele Jr. and Sebastiano Vigna. 2021. LXM: better splittable pseudorandom number generators (and almost as fast). 
 Proc. ACM Program. Lang. 5, OOPSLA, Article 148 (October 2021), 31 pages. (https://doi.org/10.1145/3485525)
 
-(https://gitlab.com/fwojcik/smhasher3)
-
-
-**Сборка теста**
-
+**Сборка теста rurban/SMHasher**
 
 ```sh
 $ git clone https://github.com/rurban/smhasher.git
@@ -538,4 +540,21 @@ $ ./build/SMHasher mwc128
 $ ./build/SMHasher mwc192
 $ ./build/SMHasher xxh64
 $ ./build/SMHasher xoroshiro
+```
+
+**Сборка теста fwojcik/SMHasher3**
+
+```sh
+$ git clone https://gitlab.com/fwojcik/smhasher3
+$ cd smhasher3
+$ cmake -B build
+$ cmake --build build -j 16 
+```
+Хэш-функии регистриуюся статически, вносить изменения в исходный код теста не требуется. Просто скопирвать хэши в папку `hashes/` и добавить имя файла в список компиляции `hashes/Hashsrc.cmake`.
+
+```sh
+$ ./build/SMHasher "mwc128-64"
+$ ./build/SMHasher "mwc192-128"
+$ ./build/SMHasher "xxh64-64"
+$ ./build/SMHasher "xoroshiro-64"
 ```

@@ -12,6 +12,7 @@
  */
 #include <stdint.h>
 #include <stddef.h>
+#include <stdio.h>
 static inline uint64_t mix_stafford13(uint64_t h) {
   h ^= h >> 30;
   h *= 0xbf58476d1ce4e5b9ull;
@@ -135,34 +136,62 @@ static inline uint64_t rrmxmx(uint64_t v) {
 static inline uint64_t next(uint64_t x, int r){
     return ((uint32_t)x<<(32-r))*MWC_A0 + (x>>r);
 }
+typedef unsigned __int128 uint128_t;
+static inline uint64_t  mwc_mod  (uint128_t ac, uint64_t M, uint64_t M_INV);
+static inline uint128_t mwc_foldm(uint128_t h, uint128_t d, const uint64_t j1, const uint64_t j2, const uint64_t M);
+static inline uint128_t mwc_merge(uint128_t h, uint128_t d, const uint64_t j1, const uint64_t j2, const uint64_t M);
 uint64_t mwc64_hash(uint64_t hash, uint8_t* data, size_t data_len){
+    static const uint64_t j64  = UINT64_C(0xFFFCB350B8C98AF1);
+    static const uint64_t j_64 = UINT64_C(0x00034CAF4736750F);
+    static const uint64_t j96  = UINT64_C(0xB8C85A1586E21F87);
+    static const uint64_t j128 = UINT64_C(0x86E141001432DA26);
+    static const uint64_t j192 = UINT64_C(0xCE7CDBEB087AEFCE);
+    static const uint64_t j256 = UINT64_C(0x4E5429F8166590FE);
     hash = unmix(hash+IV);
-#if 0
-    for (int i=0; i<data_len>>3; i++){
-        uint64_t d = *(uint64_t*) data; data+=8;
-        if (__builtin_uaddl_overflow (hash, d, &hash))
-            hash -= MWC_PRIME;
-        // if(hash<d) hash -= MWC_PRIME;
-        // else
-        // if(hash>=MWC_PRIME) hash -= MWC_PRIME;
-        hash = next(hash, 32);
-        hash = next(hash, 32);
+if (0) {
+    if (data_len>=32) {
+        uint128_t h = (uint128_t)hash, h1 = 0;
+        while (data_len>=16) {
+            uint128_t d0 = (*(uint128_t*) data); data+=16; 
+            h = mwc_foldm(h, d0, j128, j64, MWC_PRIME);
+            data_len -= 16;
+        }
+//        h = mwc_merge(h, h1, j128, j64, MWC_PRIME);
+        hash = h%MWC_PRIME;
     }
-    if (data_len&4)
-#else
-    for (int i=0; i<data_len>>2; i++)
-#endif
-    {
-        hash+= *(uint32_t*) data; data+=4;
-        hash = next(hash, 32);
-    }
-    if (data_len&2){
-        hash+= *(uint16_t*) data; data+=2;
-        hash = next(hash, 16);
-    }
-    if (data_len&1){
-        hash+= *(uint8_t*) data; data+=1;
-        hash = next(hash, 8);
+}
+    int i=0;
+    if (data_len>=16) {
+        uint128_t h = (uint128_t)hash;
+        while (data_len>=8) {
+            uint64_t d0 = (*(uint64_t*) data); data+=8; 
+            h+= d0;
+//            h = (h>>64 | h<<64) - (uint64_t)h * (uint128_t)j_64;// round mix 64
+            h = (h>>64) + (uint64_t)h * (uint128_t)j64;// round mix 64
+            data_len -= 8;
+        }
+        int r = data_len &= 7;
+        if (r) {
+            uint64_t d0 = (*(uint64_t*) data); data+=8;
+            d0 &= ~0uLL>>(64-r*8);
+            h+=d0;
+            h = (h>>(r*8)) + ((uint64_t)h<<(64-r*8)) * (uint128_t)j64;
+        }
+        hash = mwc_mod(h, MWC_PRIME, MWC_INV);
+    } else {
+        for (i=0; i<data_len>>2; i++)
+        {
+            hash+= *(uint32_t*) data; data+=4;
+            hash = next(hash, 32);
+        }
+        if (data_len&2){
+            hash+= *(uint16_t*) data; data+=2;
+            hash = next(hash, 16);
+        }
+        if (data_len&1){
+            hash+= *(uint8_t*) data; data+=1;
+            hash = next(hash, 8);
+        }
     }
     return mix(hash)-IV;
 }
@@ -172,6 +201,7 @@ static inline uint64_t mwc_addm(uint64_t a, uint64_t b, uint64_t M){
         a -= M;
     return a;
 }
+
 /*! \brief Модульное умножение с неполным редуцированием */
 static inline uint64_t mwc_mulm(uint64_t a, uint64_t b, uint64_t M)
 {	
@@ -180,6 +210,12 @@ static inline uint64_t mwc_mulm(uint64_t a, uint64_t b, uint64_t M)
 	ac-= (((ac>>64)*MWC_INV + ac)>>64)*M;
 	if (ac>>64) ac -= M;
 //	if ((uint64_t)ac>= M) ac -= M;
+	return ac;
+}
+// модульная операция с отложенным редуцированием
+static inline uint64_t mwc_mod(uint128_t ac, uint64_t M, uint64_t M_INV) {	
+	ac-= (((ac>>64)*M_INV + ac)>>64)*M;
+	if (ac>>64) ac -= M;
 	return ac;
 }
 /*! \brief Модульное умножение со сложением и неполным редуцированием */
@@ -199,11 +235,30 @@ static inline uint64_t mwc_maddm(uint64_t a, uint64_t b, uint64_t c, uint64_t M)
    Редуцирование по M = 2^{64} - 2^{32} +1, 
     {x,c} => x + ({c<<32} - c)
    */
-static mwc_foldm(uint64_t *s, uint64_t d1, uint64_t d2, uint64_t j1, uint64_t j2){
-    unsigned __int128 t = s[0]*(unsigned __int128)j1 + s[1]*(unsigned __int128)j1;
-    s[0] = t;
-    s[1] = t>>64;
+static inline uint128_t mwc_foldm(uint128_t h, uint128_t d, const uint64_t j1, const uint64_t j2, const uint64_t M){
+    if (__builtin_add_overflow(h, d, &h)) {
+        h -= (uint128_t)MWC_PRIME<<64;
+    }
+    uint128_t t;
+    t = (uint64_t)h * (uint128_t)j1;// k
+    h = (h>>64) * (uint128_t)j2; // k-64
+    if (__builtin_add_overflow(h, t, &h)){
+        h -= (uint128_t)MWC_PRIME<<64;
+    }
+    return h;
 }
+/*! выравнивание и слияние элементов вектора */ 
+static inline uint128_t mwc_merge(uint128_t h, uint128_t d, const uint64_t j1, const uint64_t j2, const uint64_t M){
+    uint128_t t;
+    t = (uint64_t)h * (uint128_t)j1;// k
+    h = (h>>64) * (uint128_t)j2; // k-64
+    if (__builtin_add_overflow(h, t, &h))
+        h -= (uint128_t)MWC_PRIME<<64;
+    if (__builtin_add_overflow(h, d, &h))
+        h -= (uint128_t)MWC_PRIME<<64;
+    return h;
+}
+
 /*! Слияние хешей двух сегментов с коррекцией переполнения
     по модулю MWC_PRIME
  */
@@ -286,13 +341,96 @@ int main() {
 if (1) {
     printf ("INV 0x%016llX\n", INVL(MWC_PRIME) );
     for (int i=0; i<8;i++) {// таблица переходов
-        uint64_t m=mwc_powm(MWC_A0, 1uLL<<(i), MWC_PRIME);
-        printf ("jump(2^%d) 0x%016llX\n", (i+2), m);
+        uint64_t p=mwc_powm(2, MWC_PRIME-1-(32u*i), MWC_PRIME);
+        printf ("jump(%3d) 0x%016llX\n", 32u*i, p);
+        uint64_t q=mwc_powm(2, MWC_PRIME-1-(32u*i + 64), MWC_PRIME);
+        printf ("jump(%3d) 0x%016llX\n", 32u*i + 64, q);
     }
+
     uint8_t str1[] = "123\x00\x00\x00\x00";
     uint8_t str2[] = "\x00\x00\x00""a\x00\x00\x00";
     uint8_t str4[] = "\x00\x00\x00\x00""bcd";
     uint8_t str3[] = "123abcd";
+    uint8_t str5[] = "0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef"
+        "\xFF\xFF\xFF\xFF\xFF\xFF\xFF\xFF\xFF\xFF\xFF\xFF\xFF\xFF\xFF\xFF"
+        "\xFF\xFF\xFF\xFF\xFF\xFF\xFF\xFF\xFF\xFF\xFF\xFF\xFF\xFF\xFF\xFF"
+        "\xFF\xFF\xFF\xFF\xFF\xFF\xFF\xFF\xFF\xFF\xFF\xFF\xFF\xFF\xFF\xFF"
+        "\xFF\xFF\xFF\xFF\xFF\xFF\xFF\xFF\xFF\xFF\xFF\xFF\xFF\xFF\xFF\xFF"
+        "\xFF\xFF\xFF\xFF\xFF\xFF\xFF\xFF\xFF\xFF\xFF\xFF\xFF\xFF\xFF\xFF"
+        "\xFF\xFF\xFF\xFF\xFF\xFF\xFF\xFF\xFF\xFF\xFF\xFF\xFF\xFF\xFF\xFF"
+        "\xFF\xFF\xFF\xFF\xFF\xFF\xFF\xFF\xFF\xFF\xFF\xFF\xFF\xFF\xFF\xFF"
+        "\xFF\xFF\xFF\xFF\xFF\xFF\xFF\xFF\xFF\xFF\xFF\xFF\xFF\xFF\xFF\xFF"
+        "\xFF\xFF\xFF\xFF\xFF\xFF\xFF\xFF\xFF\xFF\xFF\xFF\xFF\xFF\xFF\xFF"
+        "\xFF\xFF\xFF\xFF\xFF\xFF\xFF\xFF\xFF\xFF\xFF\xFF\xFF\xFF\xFF\xFF"
+        "\xFF\xFF\xFF\xFF\xFF\xFF\xFF\xFF\xFF\xFF\xFF\xFF\xFF\xFF\xFF\xFF"
+        "\xFF\xFF\xFF\xFF\xFF\xFF\xFF\xFF\xFF\xFF\xFF\xFF\xFF\xFF\xFF\xFF"
+        "\xFF\xFF\xFF\xFF\xFF\xFF\xFF\xFF\xFF\xFF\xFF\xFF\xFF\xFF\xFF\xFF"
+        "\xFF\xFF\xFF\xFF\xFF\xFF\xFF\xFF\xFF\xFF\xFF\xFF\xFF\xFF\xFF\xFF"
+        "\xFF\xFF\xFF\xFF\xFF\xFF\xFF\xFF\xFF\xFF\xFF\xFF\xFF\xFF\xFF\xFF"
+        "\xFF\xFF\xFF\xFF\xFF\xFF\xFF\xFF\xFF\xFF\xFF\xFF\xFF\xFF\xFF\xFF"
+        "\xFF\xFF\xFF\xFF\xFF\xFF\xFF\xFF\xFF\xFF\xFF\xFF\xFF\xFF\xFF\xFF"
+        "\xFF\xFF\xFF\xFF\xFF\xFF\xFF\xFF\xFF\xFF\xFF\xFF\xFF\xFF\xFF\xFF"
+        "\xFF\xFF\xFF\xFF\xFF\xFF\xFF\xFF\xFF\xFF\xFF\xFF\xFF\xFF\xFF\xFF"
+        "\xFF\xFF\xFF\xFF\xFF\xFF\xFF\xFF\xFF\xFF\xFF\xFF\xFF\xFF\xFF\xFF"
+        "\xFF\xFF\xFF\xFF\xFF\xFF\xFF\xFF\xFF\xFF\xFF\xFF\xFF\xFF\xFF\xFF"
+        "\xFF\xFF\xFF\xFF\xFF\xFF\xFF\xFF\xFF\xFF\xFF\xFF\xFF\xFF\xFF\xFF"
+        "\xFF\xFF\xFF\xFF\xFF\xFF\xFF\xFF\xFF\xFF\xFF\xFF\xFF\xFF\xFF\xFF"
+        "\xFF\xFF\xFF\xFF\xFF\xFF\xFF\xFF\xFF\xFF\xFF\xFF\xFF\xFF\xFF\xFF"
+        "\xFF\xFF\xFF\xFF\xFF\xFF\xFF\xFF\xFF\xFF\xFF\xFF\xFF\xFF\xFF\xFF"
+        "\xFF\xFF\xFF\xFF\xFF\xFF\xFF\xFF\xFF\xFF\xFF\xFF\xFF\xFF\xFF\xFF"
+        "\xFF\xFF\xFF\xFF\xFF\xFF\xFF\xFF\xFF\xFF\xFF\xFF\xFF\xFF\xFF\xFF"
+        "\xFF\xFF\xFF\xFF\xFF\xFF\xFF\xFF\xFF\xFF\xFF\xFF\xFF\xFF\xFF\xFF"
+        "\xFF\xFF\xFF\xFF\xFF\xFF\xFF\xFF\xFF\xFF\xFF\xFF\xFF\xFF\xFF\xFF"
+        "\xFF\xFF\xFF\xFF\xFF\xFF\xFF\xFF\xFF\xFF\xFF\xFF\xFF\xFF\xFF\xFF"
+        "\xFF\xFF\xFF\xFF\xFF\xFF\xFF\xFF\xFF\xFF\xFF\xFF\xFF\xFF\xFF\xFF"
+        "\xFF\xFF\xFF\xFF\xFF\xFF\xFF\xFF\xFF\xFF\xFF\xFF\xFF\xFF\xFF\xFF"
+        "\xFF\xFF\xFF\xFF\xFF\xFF\xFF\xFF\xFF\xFF\xFF\xFF\xFF\xFF\xFF\xFF"
+        "\xFF\xFF\xFF\xFF\xFF\xFF\xFF\xFF\xFF\xFF\xFF\xFF\xFF\xFF\xFF\xFF"
+        "\xFF\xFF\xFF\xFF\xFF\xFF\xFF\xFF\xFF\xFF\xFF\xFF\xFF\xFF\xFF\xFF"
+        "\xFF\xFF\xFF\xFF\xFF\xFF\xFF\xFF\xFF\xFF\xFF\xFF\xFF\xFF\xFF\xFF"
+        "\xFF\xFF\xFF\xFF\xFF\xFF\xFF\xFF\xFF\xFF\xFF\xFF\xFF\xFF\xFF\xFF"
+        "\xFF\xFF\xFF\xFF\xFF\xFF\xFF\xFF\xFF\xFF\xFF\xFF\xFF\xFF\xFF\xFF"
+        "\xFF\xFF\xFF\xFF\xFF\xFF\xFF\xFF\xFF\xFF\xFF\xFF\xFF\xFF\xFF\xFF"
+        "\xFF\xFF\xFF\xFF\xFF\xFF\xFF\xFF\xFF\xFF\xFF\xFF\xFF\xFF\xFF\xFF"
+        "\xFF\xFF\xFF\xFF\xFF\xFF\xFF\xFF\xFF\xFF\xFF\xFF\xFF\xFF\xFF\xFF"
+        "\xFF\xFF\xFF\xFF\xFF\xFF\xFF\xFF\xFF\xFF\xFF\xFF\xFF\xFF\xFF\xFF"
+        "\xFF\xFF\xFF\xFF\xFF\xFF\xFF\xFF\xFF\xFF\xFF\xFF\xFF\xFF\xFF\xFF"
+        "\xFF\xFF\xFF\xFF\xFF\xFF\xFF\xFF\xFF\xFF\xFF\xFF\xFF\xFF\xFF\xFF"
+        "\xFF\xFF\xFF\xFF\xFF\xFF\xFF\xFF\xFF\xFF\xFF\xFF\xFF\xFF\xFF\xFF"
+        "\xFF\xFF\xFF\xFF\xFF\xFF\xFF\xFF\xFF\xFF\xFF\xFF\xFF\xFF\xFF\xFF"
+        "\xFF\xFF\xFF\xFF\xFF\xFF\xFF\xFF\xFF\xFF\xFF\xFF\xFF\xFF\xFF\xFF"
+        "\xFF\xFF\xFF\xFF\xFF\xFF\xFF\xFF\xFF\xFF\xFF\xFF\xFF\xFF\xFF\xFF"
+        "\xFF\xFF\xFF\xFF\xFF\xFF\xFF\xFF\xFF\xFF\xFF\xFF\xFF\xFF\xFF\xFF"
+        "\xFF\xFF\xFF\xFF\xFF\xFF\xFF\xFF\xFF\xFF\xFF\xFF\xFF\xFF\xFF\xFF"
+        "\xFF\xFF\xFF\xFF\xFF\xFF\xFF\xFF\xFF\xFF\xFF\xFF\xFF\xFF\xFF\xFF"
+        "\xFF\xFF\xFF\xFF\xFF\xFF\xFF\xFF\xFF\xFF\xFF\xFF\xFF\xFF\xFF\xFF"
+        "\xFF\xFF\xFF\xFF\xFF\xFF\xFF\xFF\xFF\xFF\xFF\xFF\xFF\xFF\xFF\xFF"
+        "\xFF\xFF\xFF\xFF\xFF\xFF\xFF\xFF\xFF\xFF\xFF\xFF\xFF\xFF\xFF\xFF"
+        "\xFF\xFF\xFF\xFF\xFF\xFF\xFF\xFF\xFF\xFF\xFF\xFF\xFF\xFF\xFF\xFF"
+        "\xFF\xFF\xFF\xFF\xFF\xFF\xFF\xFF\xFF\xFF\xFF\xFF\xFF\xFF\xFF\xFF"
+        "\xFF\xFF\xFF\xFF\xFF\xFF\xFF\xFF\xFF\xFF\xFF\xFF\xFF\xFF\xFF\xFF"
+        "\xFF\xFF\xFF\xFF\xFF\xFF\xFF\xFF\xFF\xFF\xFF\xFF\xFF\xFF\xFF\xFF"
+        "\xFF\xFF\xFF\xFF\xFF\xFF\xFF\xFF\xFF\xFF\xFF\xFF\xFF\xFF\xFF\xFF"
+        "\xFF\xFF\xFF\xFF\xFF\xFF\xFF\xFF\xFF\xFF\xFF\xFF\xFF\xFF\xFF\xFF"
+        "\xFF\xFF\xFF\xFF\xFF\xFF\xFF\xFF\xFF\xFF\xFF\xFF\xFF\xFF\xFF\xFF"
+        "\xFF\xFF\xFF\xFF\xFF\xFF\xFF\xFF\xFF\xFF\xFF\xFF\xFF\xFF\xFF\xFF"
+        "\xFF\xFF\xFF\xFF\xFF\xFF\xFF\xFF\xFF\xFF\xFF\xFF\xFF\xFF\xFF\xFF"
+        "\xFF\xFF\xFF\xFF\xFF\xFF\xFF\xFF\xFF\xFF\xFF\xFF\xFF\xFF\xFF\xFF"
+        "\xFF\xFF\xFF\xFF\xFF\xFF\xFF\xFF\xFF\xFF\xFF\xFF\xFF\xFF\xFF\xFF"
+        "\xFF\xFF\xFF\xFF\xFF\xFF\xFF\xFF\xFF\xFF\xFF\xFF\xFF\xFF\xFF\xFF"
+        "\xFF\xFF\xFF\xFF\xFF\xFF\xFF\xFF\xFF\xFF\xFF\xFF\xFF\xFF\xFF\xFF"
+        "\xFF\xFF\xFF\xFF\xFF\xFF\xFF\xFF\xFF\xFF\xFF\xFF\xFF\xFF\xFF\xFF"
+        "\xFF\xFF\xFF\xFF\xFF\xFF\xFF\xFF\xFF\xFF\xFF\xFF\xFF\xFF\xFF\xFF"
+        "\xFF\xFF\xFF\xFF\xFF\xFF\xFF\xFF\xFF\xFF\xFF\xFF\xFF\xFF\xFF\xFF"
+        "\xFF\xFF\xFF\xFF\xFF\xFF\xFF\xFF\xFF\xFF\xFF\xFF\xFF\xFF\xFF\xFF"
+        "\xFF\xFF\xFF\xFF\xFF\xFF\xFF\xFF\xFF\xFF\xFF\xFF\xFF\xFF\xFF\xFF"
+        "\xFF\xFF\xFF\xFF\xFF\xFF\xFF\xFF\xFF\xFF\xFF\xFF\xFF\xFF\xFF\xFF"
+        "\xFF\xFF\xFF\xFF\xFF\xFF\xFF\xFF\xFF\xFF\xFF\xFF\xFF\xFF\xFF\xFF"
+        "\xFF\xFF\xFF\xFF\xFF\xFF\xFF\xFF\xFF\xFF\xFF\xFF\xFF\xFF\xFF\xFF"
+        "\xFF\xFF\xFF\xFF\xFF\xFF\xFF\xFF\xFF\xFF\xFF\xFF\xFF\xFF\xFF\xFF"
+        "\xFF\xFF\xFF\xFF\xFF\xFF\xFF\xFF\xFF\xFF\xFF\xFF\xFF\xFF\xFF\xFF"
+        "\xFF\xFF\xFF\xFF\xFF\xFF\xFF\xFF\xFF\xFF\xFF\xFF\xFF\xFF\xFF\xFF"
+        ;
     uint64_t h1, h2, h3;
     h1 = mwc64_hash(seed, str1, 3);
     h1 = mwc64_skip(h1, 4);// дистанция в байтах
@@ -304,6 +442,12 @@ if (1) {
     h2 = mwc64_hash(seed, str3, 7);
     printf ("0x%016llX\n", h1 );
     printf ("0x%016llX %s\n", h2, h1==h2?"PASS":"FAIL" );
+    h1 = mwc64_hash_8(seed, str5, 725);
+    h2 = mwc64_hash(seed, str5, 725);
+//    h2 = mwc64_skip(h2, 8);
+    printf ("0x%016llX\n", h1 );
+    printf ("0x%016llX %s\n", h2, h1==h2?"PASS":"FAIL" );
+
 }
     return 0;
 }

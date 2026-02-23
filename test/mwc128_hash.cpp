@@ -26,14 +26,16 @@ static inline uint64_t lehmer64_mix(uint64_t *s) {
 }
 //typedef unsigned int __attribute__((mode(TI)))   uint128_t;
 #define MWC_A1 		(uint128_t)0xffebb71d94fcdaf9ull
-#define IV 	0x9e3779b97f4a7c15u
-#define PAD 0x0102030405060708u
+#define MWC_NA1     UINT64_C(0x001448E26B032507)
+#define MUM_C       UINT64_C(0xa3b195354a39b70d)
+#define MUM_S       UINT64_C(0x82d2e9550235efc5)
+#define IV 	        UINT64_C(0x9e3779b97f4a7c15) // хорошая аддитивная константа golden ratio
 #define STATE_SZ 2
 #define unmix unmix_lea
 #define mix mix_lea
 static inline uint64_t _mum( uint64_t A, uint64_t B) {
     uint64_t rlo, rhi;
-    MathMult::mult64_128(rlo, rhi, A, B);
+    MathMult::mult64_128(rlo, rhi, B, A);
     return rlo ^ rhi;
 }
 
@@ -42,57 +44,70 @@ static inline void mwc128_next(uint64_t* state, uint64_t d, int r) {
 	t = (uint128_t)MWC_A1 * ((uint64_t)t<<(64-r)) + (t>>r);
     *(uint128_t*)state = t;
 }
-template <bool bswap>
+static inline void mwc128_next64(uint64_t* state, uint64_t d) {
+	uint128_t  t =*(uint128_t*)state + d;
+	t = (t<<64|t>>64) - (uint64_t)t * (uint128_t)MWC_NA1;
+    *(uint128_t*)state = t;
+}
+template <int tlen, bool bswap>
 void mwc128_hash(const void *in, size_t len, uint64_t seed, void* out) {
     const uint8_t* data = (const uint8_t*)in;
-	uint64_t s[STATE_SZ];
-    s[0] = _mum(seed += IV, UINT64_C(0x82d2e9550235efc5));
-    s[1] = IV;//_mum(seed += IV, UINT64_C(0x82d2e9550235efc5));
-    unsigned int blocks = (len>>3);
-	for (unsigned int i=0; i<blocks; i++){
-		uint64_t d = GET_U64<false>(data, 0); data+=8;
-		mwc128_next(s, d, 64);
+	uint64_t s[2];
+    s[0] = _mum(seed += IV, MUM_S);
+    s[1] = IV;
+	for (unsigned int i=0; i<len/8; i++, data+=8){
+        uint64_t d = GET_U64<false>(data, 0);
+		mwc128_next(s, d, 64);// ROUND MIX
 	}
-	int r = len&7;
+	int r = len%8;
 	if (r) {
         uint64_t d = GET_U64<false>(data, 0);
         d &= ~0uLL>>(64-r*8);
         mwc128_next(s, d, r*8);
-    } 
-    uint64_t d = _mum(s[0]^s[1], UINT64_C(0xa3b195354a39b70d));
+    }
+    uint64_t d = _mum(s[0]^s[1], MUM_C);// WY multiplier
     PUT_U64<bswap>(d, (uint8_t *)out,  0);
+    if (tlen==128){
+        mwc128_next(s+0, seed+=IV, 64);
+        uint64_t d1 = _mum(s[0]^s[1], MUM_C);
+        PUT_U64<bswap>(d1, (uint8_t *)out,  8);
+    }
 }
+
 #define MWC_A2 0xffa04e67b3c95d86u // MWC192, B2 = 1<<128
-static inline void mwc192_next(uint64_t* state) {
-	const uint128_t t = (uint128_t)MWC_A2 * state[0] + state[1];
+static inline void mwc192_next(uint64_t* state, uint64_t d, int r) {
+	uint128_t  t =((uint128_t)state[0]<<64|state[1])+d;
+	t = (uint128_t)MWC_A2 * ((uint64_t)t<<(64-r)) + (t>>r);
 	state[0] = state[2];
-	state[1] = t >> 64;
-	state[2] = t;
+	state[1] = t;
+	state[2] = t >> 64;
 }
-template <bool bswap>
+template <int tlen, bool bswap>
 void mwc192_hash(const void *in, size_t len, seed_t seed, void* out) {
     const uint8_t* data = (const uint8_t*)in;
 	uint64_t s[3];
-	uint64_t d;
-	for (int i=0; i<3; i++)
-		s[i] = unmix(seed+=IV);
-    unsigned int blocks = (len>>3);
-	for (unsigned int i=0; i<blocks; i++){
-		s[0] ^= (*(uint64_t*) data); data+=8;
-		mwc192_next(s);
+    s[0] = _mum(seed += IV, UINT64_C(0x82d2e9550235efc5));
+    s[1] = _mum(seed += IV, UINT64_C(0x82d2e9550235efc5));
+    s[2] = IV;//_mum(seed += IV, UINT64_C(0x82d2e9550235efc5));
+	for (unsigned int i=0; i<len/8; i++, data+=8){
+        uint64_t d = GET_U64<bswap>(data, 0);
+		mwc192_next(s, d, 64);// ROUND MIX
 	}
-	d = PAD;
-	int r = len&7;
+	int r = len%8;
 	if (r) {
-		__builtin_memcpy(&d, data, r); data+=r;
+        uint64_t d = GET_U64<bswap>(data, 0);
+        d &= ~0uLL>>(64-r*8);
+        mwc192_next(s, d, r*8);
     }
-	s[0] ^= (d);
-	mwc192_next(s);
-	d = mix(s[1])-IV;
+    mwc192_next(s+0, seed+=IV, 64);
+    uint64_t d = _mum(s[0]^s[1], UINT64_C(0xa3b195354a39b70d));
     PUT_U64<bswap>(d, (uint8_t *)out,  0);
-	mwc192_next(s);
-	d = mix(s[1])-IV;
-    PUT_U64<bswap>(d, (uint8_t *)out,  8);
+    if (tlen==128){
+        mwc192_next(s+0, seed+=IV, 64);
+        mwc192_next(s+0, seed+=IV, 64);
+        uint64_t d1 = _mum(s[0]^s[1], UINT64_C(0xa3b195354a39b70d));
+        PUT_U64<bswap>(d1, (uint8_t *)out,  8);
+    }
 }
 #define MWC_A  0x7ff8c871
 static inline int64_t next(int64_t x, int r){
@@ -101,7 +116,7 @@ static inline int64_t next(int64_t x, int r){
 template <bool bswap>
 void mwc64s_hash(const void* in, size_t len, uint64_t seed, void* out){
     const uint8_t* data = (const uint8_t*)in;
-    int64_t hash = (int64_t)unmix_lea(seed+IV);
+    int64_t hash = (int64_t)unmix(seed+IV);
     for (size_t i=0; i<len>>2; i++){
         hash += *(uint32_t*) data; data+=4;
         hash  = next(hash, 32);
@@ -117,16 +132,50 @@ void mwc64s_hash(const void* in, size_t len, uint64_t seed, void* out){
     uint32_t d = mix_lea((uint64_t)hash)-IV;
     PUT_U32<bswap>(d, (uint8_t *)out,  0);
 }
-#define MWC_A0  0xfffe59a7uLL//eb81bULL
-#define MWC_INV 0x0001A65BB8CE0887u
+#define MWC_A0  0xfffe59a7uLL//fffeb81bULL
+#define MWC_NA0 0x1A659
+#define MWC_INV UINT64_C(0x0001A65BB8CE0887)
+#define MWC_J64 UINT64_C(0xFFFCB350B8C98AF1)
+#define MWC_J65 UINT64_C(0xFFFD7037A3FAD2D9)
+#define MWC_J66 UINT64_C(0xFFFC3A198F1F7E79)
 #define MWC_PRIME ((MWC_A0<<32) -1)
 static inline uint64_t _next(uint64_t x, int r){
     return ((uint32_t)x<<(32-r))*MWC_A0 + (x>>r);
 }
+static const uint64_t j64  = UINT64_C(0xFFFCB350B8C98AF1);
+static inline uint64_t mwc_mod(uint128_t ac, uint64_t M, uint64_t M_INV) {	
+	ac-= (((ac>>64)*M_INV + ac)>>64)*M;
+	if (ac>>64) ac -= M;
+	return ac;
+}
+    static const uint64_t j96  = UINT64_C(0xB8C85A1586E21F87);
+    static const uint64_t j_64 = UINT64_C(0x00034CAF4736750F);
+    static const uint64_t j128 = UINT64_C(0x86E141001432DA26);
+
+static inline uint128_t mwc_foldm(uint128_t h, uint128_t d, const uint64_t j1, const uint64_t j2, const uint64_t M);
 template <bool bswap>
 void mwc64_hash(const void* in, size_t len, uint64_t seed, void* out){
     const uint8_t* data = (const uint8_t*)in;
-    int64_t hash = (int64_t)unmix_lea(seed+IV);
+//    uint64_t hash = unmix_lea(seed+IV);
+    uint64_t hash = _mum(seed += IV, UINT64_C(0x82d2e9550235efc5));
+    if (len>=32) {
+        uint128_t h = (uint128_t)hash;
+        while (len>=8) {
+            uint64_t d0 = (*(uint64_t*) data); data+=8; 
+            h+= d0;
+            h = (h>>64 | h<<64) - (uint64_t)h * (uint128_t)j_64;// round mix 128
+//          h = (h>>64)         + (uint64_t)h * (uint128_t)j64;// round mix 128
+            len -= 8;
+        }
+        len &= 7;
+        // if (r) { // рабочий но медленный
+        //     uint64_t d0 = (*(uint64_t*) data); data+=8;
+        //     d0 &= ~0uLL>>(64-r*8);
+        //     h+=d0;
+        //     h = (h>>(r*8)) + ((uint64_t)h<<(64-r*8)) * (uint128_t)j64;
+        // }
+        hash = mwc_mod(h, MWC_PRIME, MWC_INV);
+    }
     unsigned int blocks = (len>>2);
     for (unsigned int i=0; i<blocks; i++)
     {
@@ -141,9 +190,23 @@ void mwc64_hash(const void* in, size_t len, uint64_t seed, void* out){
         hash+= *(uint8_t*) data; data+=1;
         hash = _next(hash, 8);
     }
-    uint64_t d = mix(hash)-IV;
+//    uint64_t d = mix(hash)-IV;
+    uint64_t d = _mum(hash+=seed, UINT64_C(0xa3b195354a39b70d));
     PUT_U64<bswap>(d, (uint8_t *)out,  0);
 }
+
+static inline uint128_t mwc_foldm(uint128_t h, uint128_t d, const uint64_t j1, const uint64_t j2, const uint64_t M){
+    if (__builtin_add_overflow(h, d, &h))
+        h -= (uint128_t)M<<64;
+    uint128_t t;
+    t = (uint64_t)h * (uint128_t)j1;// k
+    h = (h>>64) * (uint128_t)j2; // k-64
+    if (__builtin_add_overflow(h, t, &h))
+        h -= (uint128_t)M<<64;
+    return h;
+}
+
+
 REGISTER_FAMILY(mwc128,
    $.src_url    = "https://github.com/AnatolyGeorgievski/MWC128/",
    $.src_status = HashFamilyInfo::SRC_ACTIVE
@@ -184,10 +247,24 @@ REGISTER_HASH(MWC128_64,
          FLAG_IMPL_ROTATE           |
          FLAG_IMPL_LICENSE_PUBLIC_DOMAIN,
    $.bits = 64,
-   $.verification_LE = 0xBD4A9ED0,
-   $.verification_BE = 0x9B779ACF,
-   $.hashfn_native   = mwc128_hash<false>,
-   $.hashfn_bswap    = mwc128_hash<true>
+   $.verification_LE = 0x3C5C2C5C,
+   $.verification_BE = 0x168D4939,
+   $.hashfn_native   = mwc128_hash<64,false>,
+   $.hashfn_bswap    = mwc128_hash<64,true>
+ );
+REGISTER_HASH(MWC128_128,
+   $.desc       = "128-bit MWC-128",
+   $.hash_flags =
+        0,
+   $.impl_flags =
+         FLAG_IMPL_MULTIPLY_64_128  |
+         FLAG_IMPL_ROTATE           |
+         FLAG_IMPL_LICENSE_PUBLIC_DOMAIN,
+   $.bits = 128,
+   $.verification_LE = 0x21B4F453,
+   $.verification_BE = 0xE6A1525F,
+   $.hashfn_native   = mwc128_hash<128,false>,
+   $.hashfn_bswap    = mwc128_hash<128,true>
  );
 REGISTER_HASH(MWC192_128,
    $.desc       = "128-bit MWC-128",
@@ -200,6 +277,6 @@ REGISTER_HASH(MWC192_128,
    $.bits = 128,
    $.verification_LE = 0x305E8D1D,
    $.verification_BE = 0x4B032B63,
-   $.hashfn_native   = mwc192_hash<false>,
-   $.hashfn_bswap    = mwc192_hash<true>
+   $.hashfn_native   = mwc192_hash<128,false>,
+   $.hashfn_bswap    = mwc192_hash<128,true>
  );

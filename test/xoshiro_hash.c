@@ -159,37 +159,6 @@ uint64_t xoroshiro_hash(const uint8_t *data, uint64_t len, uint64_t seed) {
 	}
  	return mix_lea(s[0]+s[1])-IV;
 }
-#if 0
-//0xfffecd60, 0xfffeb81b, 0xfffe7369,0xfffe636a, 0xfffe59a7, 0xfffe29b9,0xfffe1d0b
-#define MWC_A0 (uint64_t)0xfffeb81b //    const uint64_t P = (MWC_A0<<32)-1;
-uint64_t mwc64_hash(const uint8_t* data, uint64_t len, uint64_t seed){
-	uint64_t hash;
-		hash = unmix_lea(seed+=IV);
-    for (int i=0; i<len>>2; i++){
-        hash+= *(uint32_t*) data; data+=4;
-        hash = ((uint32_t)hash)*MWC_A0 + (hash>>32);
-    }
-/*
-    if (len&2){
-        hash^= *(uint16_t*) data; data+=2;
-        hash = ((uint16_t)hash)*(MWC_A0<<16) + (hash>>16);
-    }
-    if (len&1){
-        hash^= *(uint8_t*) data; data+=1;
-        hash = ((uint8_t)hash)*(MWC_A0<<24) + (hash>>8);
-    } */
-    if (len&3) {
-		int r = len&3;
-        uint32_t mask = (~0u)>>(32-r*8);
-		uint32_t d = 0;
-		__builtin_memcpy(&d, data, r); data+=r;
-		hash+= d;
-		hash = ((uint32_t)hash<<(32-(r*8)))*(MWC_A0) + (hash>>(r*8));
-	}
-//    hash = ((uint32_t)hash)*MWC_A0 + (hash>>32);
-    return mix_lea(hash);
-}
-#endif
 uint32_t A2 = 0xffe118ab;
 static inline void mwc64r2_next(uint64_t*s, int r) {
     uint32_t *state = (uint32_t *)s;
@@ -218,73 +187,4 @@ uint64_t mwc64r2_hash(const uint8_t* data, uint64_t len, uint64_t seed){
     mwc64r2_next(s,4);
     mwc64r2_next(s,4);
     return mix_lea(s[0]^s[1]);
-}
-
-
-// xxh64_hash -- быстрая
-typedef uint64_t uint64x4_t __attribute__((__vector_size__(32)));
-
-typedef struct _HashCtx HashCtx_t;
-struct _HashCtx {
-    uint64_t state[4];
-    uint8_t  block[32];
-    int offset;
-};
-static const uint64_t Prime1 = 0x9E3779B185EBCA87ULL;
-static const uint64_t Prime2 = 0xC2B2AE3D27D4EB4FULL;
-static const uint64_t Prime3 = 0x165667B19E3779F9ULL;
-static const uint64_t Prime4 = 0x85EBCA77C2B2AE63ULL;
-static const uint64_t Prime5 = 0x27D4EB2F165667C5ULL;
-
-#define ROTL64(x, n) ((x)<<n | (x)>>(64-n))
-static inline uint64_t ROUND64(uint64_t x){
-    return ROTL64(x*Prime2,31)*Prime1;
-}
-static inline uint64_t MERGE64(uint64_t hash, uint64_t x){
-    return (hash ^ ROUND64(x))*Prime1 + Prime4;
-}
-// Миксер avalanche от xxHash64
-static inline uint64_t avalanche(uint64_t hash){
-    hash ^= hash >> 33;
-    hash *= Prime2;
-    hash ^= hash >> 29;
-    hash *= Prime3;
-    hash ^= hash >> 32;
-    return hash;
-}
-uint64_t xxh64_hash(uint8_t* data, uint64_t data_len, uint64_t seed0)
-{
-	uint64_t hash = seed0; 
-    if (data_len>=32){
-        uint64x4_t state = (uint64x4_t){Prime1 + Prime2, Prime2, 0, -Prime1};
-        state+=hash;
-        int blocks = data_len>>5;
-        int  i;
-		for (i=0; i<blocks; i++) {// вектор 256 бит
-            uint64x4_t block;
-            __builtin_memcpy(&block, data, 32); data+=32;
-            state = ROTL64(state + block*Prime2, 31) * Prime1;
-        }
-        hash  = ROTL64(state[0],  1) +
-                ROTL64(state[1],  7) +
-                ROTL64(state[2], 12) +
-                ROTL64(state[3], 18);
-        hash  = MERGE64(hash, state[0]);
-        hash  = MERGE64(hash, state[1]);
-        hash  = MERGE64(hash, state[2]);
-        hash  = MERGE64(hash, state[3]);
-    } else {
-        hash = hash + Prime5;
-    }
-    hash += data_len;
-	// finalize()
-    data_len &= 0x1F;
-    int i;
-    for (i=0; i < data_len>>3; i++, data+=8)
-        hash = ROTL64(hash ^ ROUND64(*(uint64_t*)data), 27) * Prime1 + Prime4;
-    for (i*=2; i < data_len>>2; i++, data+=4)
-        hash = ROTL64(hash ^ *(uint32_t*)data * Prime1, 23) * Prime2 + Prime3;
-    for (i*=4; i < data_len; i++, data++)
-        hash = ROTL64(hash ^ *data * Prime5, 11) * Prime1;
-	return avalanche(hash);
 }
