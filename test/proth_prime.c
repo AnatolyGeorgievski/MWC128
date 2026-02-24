@@ -39,7 +39,9 @@ static uint64_t powm(const uint64_t b, uint64_t a, const uint64_t N)
 	}
 	return s;
 }
-/*! \brief Тест простоты для чисел Прота вида p = a*2^s + 1 */
+/*! \brief Тест простоты для чисел Прота вида p = a*2^s + 1 
+ максимальный период повтора равен (p-1)/w , выбираем числа с w=1
+ */
 int Proth_test (uint64_t p){
 	uint64_t g = 3;
 	while(jacobi(g, p)!=-1) g+=2;
@@ -71,13 +73,17 @@ int main(int argc, char* argv[]){
 	printf("Max prime[%d] =%08x\n", i, prime[i-1]); 
 
 	printf("test ab+1 primes\n");
-	for (uint64_t k=1; k<=0x7FFFF; k++){
+	for (uint64_t k=1; k<=0x7FFFFFF; k+=2){
 		a = (1uLL<<63) - (k<<32)+1;
 		uint64_t a0 = (a-1)>>__builtin_ctz(a-1);
 		if (is_prime(a0,i))
 		if (is_prime(a,i))
-		if (Proth_test(a))
-			printf("0x%0llx, ", a);
+		if (Proth_test(a)) {
+			int w = 1;
+			while (w<(1uLL<<32) && powm(a>>32, (a-1)/w, a)==1) w<<=1;
+			if (w <= 128)// дополнительный критерий отбора - создает мультипликативную группу с периодом повтора (P-1)/w
+			printf("0x%0llx (%d), %d 0x%0llx\n", a, w, powm(a>>32, (a-1)/w, a)- (a-1), a0); // период повтора множителя
+		}
 	}
 	return 0;
 }

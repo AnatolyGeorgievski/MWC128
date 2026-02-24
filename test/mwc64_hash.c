@@ -161,7 +161,7 @@ if (0) {
     }
 }
     int i=0;
-    if (data_len>=16) {
+    if (0 && data_len>=16) {
         uint128_t h = (uint128_t)hash;
         while (data_len>=8) {
             uint64_t d0 = (*(uint64_t*) data); data+=8; 

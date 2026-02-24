@@ -44,26 +44,34 @@ static inline void mwc128_next(uint64_t* state, uint64_t d, int r) {
 	t = (uint128_t)MWC_A1 * ((uint64_t)t<<(64-r)) + (t>>r);
     *(uint128_t*)state = t;
 }
-static inline void mwc128_next64(uint64_t* state, uint64_t d) {
-	uint128_t  t =*(uint128_t*)state + d;
-	t = (t<<64|t>>64) - (uint64_t)t * (uint128_t)MWC_NA1;
-    *(uint128_t*)state = t;
-}
 template <int tlen, bool bswap>
 void mwc128_hash(const void *in, size_t len, uint64_t seed, void* out) {
     const uint8_t* data = (const uint8_t*)in;
 	uint64_t s[2];
     s[0] = _mum(seed += IV, MUM_S);
     s[1] = IV;
-	for (unsigned int i=0; i<len/8; i++, data+=8){
-        uint64_t d = GET_U64<false>(data, 0);
-		mwc128_next(s, d, 64);// ROUND MIX
-	}
-	int r = len%8;
-	if (r) {
-        uint64_t d = GET_U64<false>(data, 0);
-        d &= ~0uLL>>(64-r*8);
-        mwc128_next(s, d, r*8);
+    if (unlikely(len>=8)){
+        do{
+            uint64_t d = GET_U64<false>(data, 0);
+            mwc128_next(s, d, 64);// ROUND MIX
+            len -= 8; data+=8;
+        } while (likely(len >= 8));
+    } 
+	if (len) {
+        if (len&4) {
+            uint64_t d = GET_U32<false>(data, 0); data+=4;
+            mwc128_next(s, d, 32);
+        }
+        if (len&2) {
+            uint64_t d = *(uint16_t*)data; data+=2;
+            mwc128_next(s, d, 16);
+        }
+        if (len&1) {
+            uint64_t d = *(uint8_t*)data; data++;
+            mwc128_next(s, d, 8);
+        }
+        // d &= ~0uLL>>(64-len*8);
+        // mwc128_next(s, d, len*8);
     }
     uint64_t d = _mum(s[0]^s[1], MUM_C);// WY multiplier
     PUT_U64<bswap>(d, (uint8_t *)out,  0);
