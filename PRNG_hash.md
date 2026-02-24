@@ -524,11 +524,15 @@ Appleby/SMHasher](https://github.com/aappleby/smhasher) и два проекта
 Исходные коды для теста SMHasher3
 * [MWC128-hash 64-bit](test/mwc128_hash.cpp) 
 * [XXH64-hash 64-bit](test/xxh64.cpp) 
+* [FNV1a 64-bit](test/fnv1a.cpp) -- в алгоритм добавлен входной миксер на SEED и выходной миксер типа MUM
 
 | Hash      | Result | Tests  | B/cycle | GiB/sec<!-- @ 3.5 GHz -->|SpeedSmall |
 |-----------|--------|--------|--------:|--------:|---|
 | [MWC128-64](test/mwc128-64-smhasher3.txt) | PASS   | 188/188  | 2.33  |  7.60| 24.89 | без векторизации цикла
 | [xxh64-64](test/xxh64-64-smhasher3.txt)   | FAIL   | 179/188  | 6.19  | 20.17| 33.07 | провальные тесты связаны с отсутствием миксера на SEED
+| [FNV1a-64](test/fnv1a-64-mum-smhasher.txt)| PASS   | 186/186  | 0.39  |  1.28| 48.58 | 
+| [FNV1a-64.mum](test/fnv1a-64-mum2-smhasher3.txt)| PASS   | 186/186  | 0.26  |  0.85| 69.18 | 
+| [FNV1a-64.fast](test/fnv1a-64-fast-smhasher3.txt)| PASS   | 188/188  | 6.81  |  22.21| 28.34 | 
 
 **Векторные расширения**
 
