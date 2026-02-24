@@ -29,6 +29,7 @@ static inline int hamming_weight32(uint32_t x) {
 const static uint64_t gamma32 = 362437;
 const static uint64_t gamma = ~0;// ~0, 1,3,5,7,11,13, .... (~0<<32) + 1, 
 const static uint64_t gamma_ms = 0xb5ad4eceda1ce2a9;
+// варианты констант gamma:
 // 0x9e3779b97f4a7c15
 // 0xc45a11730cc8ffe3
 // 0x2b13b77d0b289bbd
@@ -441,29 +442,39 @@ static uint64_t _mum_primes[] = {
   0xde3add92e94caa37, 0x7e14eadb1f65311d, 0x3f5aa40f89812853, 0x33b15a3b587d15c9,
 };
 
+
+
+
 #include <math.h>
+typedef uint64_t (*cb_next)(void*);
 static inline double difficulty(uint64_t x) {
 	return 1/((double)x+0.5);
 }
 #define M 32
-double dif_test(const char* name, uint64_t (*next)(), uint64_t *sum, int Nr) {
+double dif_test(const char* name, uint64_t (*next)(void*), uint64_t* state, uint64_t *sum, int Nr) {
 	#define DIM 3
 	const int m = 0;	  // группировка значений по разрядам 0:1, 1:1.5=3/2, 2:1.875= 15/8; 3:255/128, m: (2^2^m-1)/2^{2^m-1}
 	double r = 1;
 	long double diffi = 0; 		// суммарная сложность
     uint64_t count = 1uLL<<32; 	// число отсчетов в тесте
-	double hist[M] = {0}; // распределение сложности по категориям
-	uint32_t v [M] = {0}; // частоты попадания в каждую категорию
+	double hist[M] = {0}; 		// распределение сложности по категориям
+	uint32_t  v    [M] = {0}; // частоты попадания в каждую категорию
+	uint32_t  v1   [M] = {0}; 
     for (uint64_t k = 0; k< count; k++) {
-		uint64_t x = next();
+		uint64_t x = next(state);
 		double d = difficulty(x);
 		diffi += d;
 		uint32_t x0 = x;
-		//if (k%DIM == 1) // фильтр 1/3
-		{// распределение по числу нулевых бит
+		uint32_t x1 = x;
+		//if (k%DIM == 1) // фильтр 1/3 1/2 - опция
+		if (1) {// распределение по числу нулевых бит
 			int i = x0? __builtin_clz(x0): 31;
 			hist[(i>>m)] += d; // 
 			v   [(i>>m)] ++; // частоты по битовой сложности
+		}
+		if (1) {// распределение по числу нулевых бит
+			int i = x1? __builtin_ctz(x1): 31;
+			v1   [(i>>m)] ++;   // частоты по битовой сложности
 		}
 	}
 	if (sum) {// суммирование по категориям
@@ -471,13 +482,14 @@ double dif_test(const char* name, uint64_t (*next)(), uint64_t *sum, int Nr) {
 			sum[i] += v[i];
 	}
 	if (1)  { // вывод подробного отчета по категориям
-		printf ("##:  difficulty | frequency | hashrate | avg.hrate |\n");
+		printf ("##:  difficulty | freq. clz | freq. ctz | hashrate | hrate.ctz | avg.hrate |\n");
 		for(int i=0;i<M>>m; i++)
 			if (v[i]!=0) {
 				//double P =(double)1.0/(1uLL<<(31 -(i<<m)));
 				int ex = -(31 -(i<<m));
-				double hr, ar = 0;
+				double hr, ar = 0, hrt;
 				hr = __builtin_ldexp(  v[i],ex);
+				hrt = __builtin_ldexp( v1[i],ex);
 				double r1 = (M>>m)-1 == i?2:r;
 				int ok;
 				if (sum) {
@@ -486,7 +498,7 @@ double dif_test(const char* name, uint64_t (*next)(), uint64_t *sum, int Nr) {
 					ok = fabs(ar - r1)* sqrt(__builtin_ldexp((Nr+1),-ex)) <= r1;
 				} else
 					ok = fabs(hr - r1)<= r1* sqrt(__builtin_ldexp(  1,ex));
-				printf ("%2d: %12.3f| %-10u| %8.6f | %9.7f |%s\n", i, hist[i], v[i], hr, ar, ok?"":" fail");
+				printf ("%2d: %12.3f| %-10u| %-10u| %8.6f | %8.6f | %9.7f |%s\n", i, hist[i], v[i], v1[i], hr, hrt, ar, ok?"":" fail");
 			}
 	}
 	return diffi; // суммарная сложность
@@ -566,7 +578,7 @@ int main(){
 	for (int n=0;n<512;n++) {
 		printf ("----------------------------------%d\n", n);
         for (int k=0;k<n_tests;k++) {
-            gen[k].diff += dif_test(gen[k].name, gen[k].next, gen[k].sum, n);
+            gen[k].diff += dif_test(gen[k].name, (cb_next)gen[k].next, NULL, gen[k].sum, n);
             printf("%-16s| %-9.4g\n", gen[k].name, gen[k].diff);
         }
 	}

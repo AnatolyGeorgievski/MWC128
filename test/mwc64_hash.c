@@ -195,6 +195,13 @@ if (0) {
     }
     return mix(hash)-IV;
 }
+/*! \brief Модульное сложение с неполным редуцированием */
+static inline uint64_t mwc_add(uint64_t a, uint64_t b, uint64_t M){
+    if (__builtin_add_overflow(a, b, &a))
+        a -= M;
+    return a;
+}
+/*! \brief Модульное сложение с редуцированием по модулю */
 static inline uint64_t mwc_addm(uint64_t a, uint64_t b, uint64_t M){
     a += b;
     if (a<b || a>=M) 
@@ -212,7 +219,7 @@ static inline uint64_t mwc_mulm(uint64_t a, uint64_t b, uint64_t M)
 //	if ((uint64_t)ac>= M) ac -= M;
 	return ac;
 }
-// модульная операция с отложенным редуцированием
+/*! \brief модульная операция с отложенным редуцированием */
 static inline uint64_t mwc_mod(uint128_t ac, uint64_t M, uint64_t M_INV) {	
 	ac-= (((ac>>64)*M_INV + ac)>>64)*M;
 	if (ac>>64) ac -= M;
@@ -228,8 +235,8 @@ static inline uint64_t mwc_maddm(uint64_t a, uint64_t b, uint64_t c, uint64_t M)
 //	if ((uint64_t)ac>= M) ac -= M;
 	return ac;
 }
-/*! \brief Модульное "схлопывание" используются две сдвиговые константы на 
-    дистанцию w={64*n} и w={64*n + 64}
+/*! \brief Модульное "схлопывание" folding, используются две сдвиговые константы на 
+    дистанцию w1={64*n} и w2={64*n - 64}
    ${x, c} = x\cdot j_1 + c\cdot j_2$ аналогично операции folding в CRC
 
    Редуцирование по M = 2^{64} - 2^{32} +1, 
@@ -237,25 +244,25 @@ static inline uint64_t mwc_maddm(uint64_t a, uint64_t b, uint64_t c, uint64_t M)
    */
 static inline uint128_t mwc_foldm(uint128_t h, uint128_t d, const uint64_t j1, const uint64_t j2, const uint64_t M){
     if (__builtin_add_overflow(h, d, &h)) {
-        h -= (uint128_t)MWC_PRIME<<64;
+        h -= (uint128_t)M<<64;
     }
     uint128_t t;
     t = (uint64_t)h * (uint128_t)j1;// k
     h = (h>>64) * (uint128_t)j2; // k-64
     if (__builtin_add_overflow(h, t, &h)){
-        h -= (uint128_t)MWC_PRIME<<64;
+        h -= (uint128_t)M<<64;
     }
     return h;
 }
-/*! выравнивание и слияние элементов вектора */ 
+/*! \brief выравнивание и слияние элементов вектора */ 
 static inline uint128_t mwc_merge(uint128_t h, uint128_t d, const uint64_t j1, const uint64_t j2, const uint64_t M){
     uint128_t t;
     t = (uint64_t)h * (uint128_t)j1;// k
     h = (h>>64) * (uint128_t)j2; // k-64
     if (__builtin_add_overflow(h, t, &h))
-        h -= (uint128_t)MWC_PRIME<<64;
+        h -= (uint128_t)M<<64;
     if (__builtin_add_overflow(h, d, &h))
-        h -= (uint128_t)MWC_PRIME<<64;
+        h -= (uint128_t)M<<64;
     return h;
 }
 
@@ -284,7 +291,10 @@ static uint64_t mwc_powm(uint64_t a, uint64_t e, uint64_t M)
 	if (acc>=M) acc -= M;// отложенное редуцирование
 	return acc;
 }
-// дистанция по числу бит
+/*! \brief пропуск сегмента, дистанция задается по числу байт 
+    Максимальный период мультипликативной группы (Prime -1), 
+    период может быть меньше, например (Prime-1)/w
+ */
 uint64_t mwc64_skip(uint64_t hash, uint64_t distance) {
     hash = unmix(hash+IV);
 	uint64_t m=mwc_powm(2, MWC_PRIME-1-(distance<<3), MWC_PRIME);
@@ -296,6 +306,15 @@ uint64_t mwc64_jump(uint64_t hash, uint64_t jump) {
 	uint64_t x=mwc_mulm(hash, jump, MWC_PRIME);
 	return mix(x)-IV;
 }
+/*! \brief референсная реализация */
+uint64_t mwc64_hash_8(uint64_t hash, uint8_t* data, size_t data_len){
+    hash = unmix(hash+IV);
+    for (int i=0; i<data_len; i++){
+        hash+= *(uint8_t*) data; data+=1;
+        hash = next(hash, 8); // шаг 8 бит
+    }
+    return mix(hash)-IV;
+}
 #ifdef TEST_MWC64_HASH
 uint64_t mwc64_hash_16(uint64_t hash, uint8_t* data, size_t data_len){
     hash = unmix(hash+IV);
@@ -304,14 +323,6 @@ uint64_t mwc64_hash_16(uint64_t hash, uint8_t* data, size_t data_len){
         hash = next(hash, 16);
     }
     if (data_len&1){
-        hash+= *(uint8_t*) data; data+=1;
-        hash = next(hash, 8);
-    }
-    return mix(hash)-IV;
-}
-uint64_t mwc64_hash_8(uint64_t hash, uint8_t* data, size_t data_len){
-    hash = unmix(hash+IV);
-    for (int i=0; i<data_len; i++){
         hash+= *(uint8_t*) data; data+=1;
         hash = next(hash, 8);
     }
