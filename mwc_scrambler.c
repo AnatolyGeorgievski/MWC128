@@ -5,6 +5,8 @@
  */
 #include <stdint.h>
 #include <stdio.h>
+#include "mwc.h"
+
 static inline uint64_t rotl(const uint64_t x, int k) {
 	return (x << k) ^ (x >> (64 - k));
 }
@@ -478,24 +480,28 @@ double dif_test(const char* name, uint64_t (*next)(void*), uint64_t* state, uint
 		}
 	}
 	if (sum) {// суммирование по категориям
-		for(int i=0;i<M; i++)
+		for(int i=0;i<M; i++) {
 			sum[i] += v[i];
+			sum[i+M] += v1[i];
+		}
 	}
 	if (1)  { // вывод подробного отчета по категориям
-		printf ("##:  difficulty | freq. clz | freq. ctz | hashrate | hrate.ctz | avg.hrate |\n");
+		printf ("##:  difficulty | freq. clz | freq. ctz | hashrate | hrate.tz | avg.hrate |\n");
 		for(int i=0;i<M>>m; i++)
 			if (v[i]!=0) {
 				//double P =(double)1.0/(1uLL<<(31 -(i<<m)));
 				int ex = -(31 -(i<<m));
-				double hr, ar = 0, hrt;
+				double hr, hrt, ar = 0, ar1 = 0;
 				hr = __builtin_ldexp(  v[i],ex);
 				hrt = __builtin_ldexp( v1[i],ex);
 				double r1 = (M>>m)-1 == i?2:r;
 				int ok;
 				if (sum) {
 					ar = __builtin_ldexp(sum[i],ex)/(Nr+1);
+					ar1= __builtin_ldexp(sum[i+M],ex)/(Nr+1);
 					// KS statistics max(D+,D-)\sqrt(n) <= eps
 					ok = fabs(ar - r1)* sqrt(__builtin_ldexp((Nr+1),-ex)) <= r1;
+					ok&= fabs(ar1 - r1)* sqrt(__builtin_ldexp((Nr+1),-ex)) <= r1;
 				} else
 					ok = fabs(hr - r1)<= r1* sqrt(__builtin_ldexp(  1,ex));
 				printf ("%2d: %12.3f| %-10u| %-10u| %8.6f | %8.6f | %9.7f |%s\n", i, hist[i], v[i], v1[i], hr, hrt, ar, ok?"":" fail");
@@ -513,7 +519,7 @@ int main(){
         const char* name;
         uint64_t (*next)();
 		double diff;
-		uint64_t sum[M];
+		uint64_t sum[M*2];
     } gen[] = {
 //        {"Counter", count_next},
 //        {"Gray-64L code", gray_next},

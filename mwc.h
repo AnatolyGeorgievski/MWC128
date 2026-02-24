@@ -89,7 +89,7 @@ double aces_test(PRNG_t* gen);
         hist - накопление результатов теста (диаграмма распределения _hashrate_)
         difficulty - суммарная сложность
  */
-double diff_test(PRNG_t* gen, double* hist);
+double diff_test(const char* name, uint64_t (*next)(void*), uint64_t* state, uint64_t *sum, int Nr);
 /*! Тест производительности в цикле 
  */
 double speed_test(PRNG_t* gen);
