@@ -33,7 +33,29 @@ static void FNV1a( const void * in, size_t len, uint64_t seed, void * out ) {
     h = _mum(h^h>>32, C2);// добавил миксер на выход функции
     PUT_U64<bswap>(h, (uint8_t *)out, 0);
 }
-
+#if 1
+#undef C2
+#define C2      UINT64_C(0x938d8ea693c51b8b) // 62 32
+#define C4      UINT64_C(0x9c97e1a908e49d79) // 61 32
+#define C8      UINT64_C(0xd7b3b1c27065a331) // 60 32
+#define C16     UINT64_C(0x9b942f690cb16f61) // 59 32
+#define C32     UINT64_C(0xcf3c18fe4c9742c1) // 58 32
+#define C64     UINT64_C(0xd80ecffe69161581) // 57 32
+#define C128    UINT64_C(0x73d8698785fa6b01) // 56 32
+#define C256    UINT64_C(0x77b1d53234add601) // 55 32
+#define C512    UINT64_C(0xc03e575f583fac01) // 54 32
+#elif 1
+#undef C2
+#define C2      UINT64_C(0x8b4e7465b45a2765) // 62 32
+#define C4      UINT64_C(0x317184d7c113edd9) // 61 32
+#define C8      UINT64_C(0x79f258ac5d3181f1) // 60 32
+#define C16     UINT64_C(0xe36d4dd41a36c4e1) // 59 32
+#define C32     UINT64_C(0x0d6e9a5d5a554dc1) // 58 32
+#define C64     UINT64_C(0xcf42c9526dc7ab81) // 57 32
+#define C128    UINT64_C(0x1ad2146bef739701) // 56 32
+#define C256    UINT64_C(0x0bd56afae1f82e01) // 55 32
+#define C512    UINT64_C(0x49f2df6aec345c01) // 54 32
+#else
 #define C4      UINT64_C(0xc6d1c7090d80a0c1) // 58
 #define C8      UINT64_C(0x6ea6874e279bc981) // 57
 #define C16     UINT64_C(0x89322654043917d7) // 61
@@ -42,7 +64,7 @@ static void FNV1a( const void * in, size_t len, uint64_t seed, void * out ) {
 #define C128    UINT64_C(0xf1527cc4a5bca09f) // 59
 #define C256    UINT64_C(0xd0e4c4ff2e99481e) // 6
 #define C512    UINT64_C(0x63c381f839f73075) // 62
-
+#endif
 template <bool bswap>
 static void FNV1a_fast( const void * in, size_t len, uint64_t seed, void * out ) {
     const uint8_t * data = (const uint8_t *)in;

@@ -5,6 +5,7 @@
  */
 #include <stdint.h>
 #include <stdio.h>
+#include <math.h>
 #include "mwc.h"
 
 static inline uint64_t rotl(const uint64_t x, int k) {
@@ -29,7 +30,7 @@ static inline int hamming_weight32(uint32_t x) {
 }
 // Weyl sequence: d+=362437; period 2^{32}
 const static uint64_t gamma32 = 362437;
-const static uint64_t gamma = ~0;// ~0, 1,3,5,7,11,13, .... (~0<<32) + 1, 
+const static uint64_t gamma = 0x9e3779b97f4a7c15;// ~0, 1,3,5,7,11,13, .... (~0<<32) + 1, 
 const static uint64_t gamma_ms = 0xb5ad4eceda1ce2a9;
 // варианты констант gamma:
 // 0x9e3779b97f4a7c15
@@ -452,7 +453,7 @@ static inline uint64_t _wymix(uint64_t A, uint64_t B){
 static uint64_t wyrand_mix() {
 	static uint64_t s = 0;
     s += gamma;//0x60bee2bee120fc15ULL;
-    return _wymix(s, 0xa3b195354a39b70dULL);
+    return _wymix(s, 0x938d8ea693c51b8b);//0x8b4e7465b45a2765u;0xa3b195354a39b70dULL;0x938d8ea693c51b8b
 }
 static inline uint64_t wyrand_mum(uint64_t *seed){ 
 	static uint64_t s = 0;
@@ -468,134 +469,7 @@ static uint64_t _mum_primes[] = {
   0xde3add92e94caa37, 0x7e14eadb1f65311d, 0x3f5aa40f89812853, 0x33b15a3b587d15c9,
 };
 
-
-
-
-#include <math.h>
-typedef uint64_t (*cb_next)(void*);
-static inline double difficulty(uint64_t x) {
-	return 1/((double)x+0.5);
-}
-#include <x86intrin.h>
-// посчитать число бит в каждой позиции
-static inline uint8_t* HistogramBits( uint32_t* x, int N_bits, uint8_t * v ) {
-// использовать инструкции AVX2 и AVX512 - с маской __mmask32
-#if defined(__AVX2__)
-    const __m256i ONE  = _mm256_set1_epi8(1);
-    const __m256i MASK = _mm256_set1_epi64x(0x8040201008040201u);
-	for (int i=0; i<N_bits/32; i++){
-        uint32_t word = x[i];
-        __m256i base  = _mm256_set1_epi32(word);
-		__m256i cnt = _mm256_loadu_si256((const __m256i *)v);
-        __m256i inc = _mm256_min_epu8(_mm256_and_si256(base, MASK), ONE);
-		        cnt = _mm256_add_epi8(cnt, inc);
-		_mm256_storeu_si256((__m256i_u *)v, cnt); v += 32;
-    }
-#else
-	for (int k=0; k<N_bits/32; k++){
-		for (int i=0; i<32; i++){
-			*v++ += (x[k]>>i) & 1;
-		}
-	}
-#endif
-	return v;
-}
 #define M 32 // число разрядов в тесте
-/*! \brief Bit Independent Criteria Test 
-
- */
-double bic_test(uint64_t (*next)(void*), uint64_t* state, uint64_t *sum, int expN) {
-    uint64_t count = 1uLL<<expN; 	// число отсчетов в тесте
-	uint32_t  bin [M]; // bit independence
-	uint8_t   bit8[M]; // аккумулятор, не более 255 циклов
-	__builtin_bzero(bin, M*sizeof(uint32_t));
-	__builtin_bzero(bit8, M);
-	for (uint64_t k = 0; k< count; k++) {
-		uint64_t x = next(state);
-		HistogramBits((uint32_t*)&x, M, bit8);
-		if((k&127) == 127) {
-			for(int i=0; i<M; i++)	bin[i] += bit8[i]; 
-			__builtin_bzero(bit8, M);
-		} 
-	}
-	if (sum)
-		for (int i=0; i<M; i++)	sum[i] += bin[i];
-	double ks = 0;// ks statistics
-	for (int i=0; i<M; i++)	{
-		double d = __builtin_ldexp((uint64_t)bin[i] - (count/2), -expN/2);
-		ks = fmax(fabs(d),ks);
-	}
-	return ks;
-}
-double dif_test(const char* name, uint64_t (*next)(void*), uint64_t* state, uint64_t *sum, int Nr) {
-	#define DIM 3
-	const int m = 0;	  // группировка значений по разрядам 0:1, 1:1.5=3/2, 2:1.875= 15/8; 3:255/128, m: (2^2^m-1)/2^{2^m-1}
-	double r = 1;
-	long double diffi = 0; 		// суммарная сложность
-	const int expN = 28;
-    uint64_t count = 1uLL<<expN; 	// число отсчетов в тесте
-	double hist[M] = {0}; 		// распределение сложности по категориям
-	uint32_t  v    [M] = {0}; // clz частоты попадания в каждую категорию
-	uint32_t  v1   [M] = {0}; // ctz
-	uint32_t  bit  [M]= {0}; // bit independence
-	uint8_t bit8[M] = {0};
-    for (uint64_t k = 0; k< count; k++) {
-		uint64_t x = next(state);
-		double d = difficulty(x);
-		diffi += d;
-		uint32_t x0 = x;
-		uint32_t x1 = x;
-		//if (k%DIM == 1) // фильтр 1/3 1/2 - опция
-		if (1) {// распределение по числу нулевых бит
-			int i = x0? __builtin_clz(x0): 31;
-			hist[(i>>m)] += d; // 
-			v   [(i>>m)] ++; // частоты по битовой сложности
-		}
-		if (1) {// распределение по числу нулевых бит
-			int i = x1? __builtin_ctz(x1): 31;
-			v1   [(i>>m)] ++;   // частоты по битовой сложности
-		}
-		if (1) {
-			HistogramBits(&x0, M, bit8);
-			if((k&127) == 127) {
-				for(int i=0; i<M; i++)	bit[i] += bit8[i]; 
-				__builtin_bzero(bit8, M);
-			} 
-		}
-	}
-	if (sum) {// суммирование по категориям
-		for(int i=0;i<M; i++) {
-			sum[i  ] += v [i]; 	// clz
-			sum[i+M] += v1[i];	// ctz
-		}
-	}
-	if (1)  { // вывод подробного отчета по категориям
-		printf ("##:  difficulty | freq. clz | freq. ctz | freq. bit | hashrate | hrate.tz | avg.hrate |\n");
-		for(int i=0;i<M>>m; i++)
-			if (v[i]!=0) {
-				//double P =(double)1.0/(1uLL<<(31 -(i<<m)));
-				int ex = -(31 -(i<<m));
-				double hr, hrt, ar = 0, ar1 = 0;
-				hr = __builtin_ldexp(  v[i],ex);
-				hrt = __builtin_ldexp( v1[i],ex);
-				double r1 = (M>>m)-1 == i?2:r;
-				int ok;
-				if (sum) {
-					ar = __builtin_ldexp(sum[i],ex)/(Nr+1);
-					ar1= __builtin_ldexp(sum[i+M],ex)/(Nr+1);
-					// KS statistics max(D+,D-)\sqrt(n) <= eps
-					ok = fabs(ar - r1)* sqrt(__builtin_ldexp((Nr+1),-ex)) <= r1;
-					ok&= fabs(ar1 - r1)* sqrt(__builtin_ldexp((Nr+1),-ex)) <= r1;
-				} else
-					ok = fabs(hr - r1)<= r1* sqrt(__builtin_ldexp(  1,ex));
-				// bit independence criteria KS для 2^{32}
-				double bic = __builtin_ldexp((double)bit[i] - (count/2), -expN/2);//(count/2);
-				printf ("%2d: %12.3f| %-10u| %-10u| %+9.6f | %8.6f | %8.6f | %9.7f |%s\n", i, 
-					hist[i], v[i], v1[i], bic, hr, hrt, ar, ok?"":" fail");
-			}
-	}
-	return diffi; // суммарная сложность
-}
 #if defined(TEST_SCRAMBLER)
 int main(){
     // 64-bit
@@ -624,6 +498,8 @@ int main(){
         {"Scrambler Sum0-32", scrambler_sum032_next},
         {"Scrambler Sum1-32", scrambler_sum132_next},
 #endif
+        {"Scrambler Sigma0", scrambler_sigma0_next},
+        {"Scrambler Sigma1", scrambler_sigma1_next},
 #if 0
 		{"Scrambler 1-64", scrambler_1_next},
         {"Scrambler 2-64", scrambler_2_next},
@@ -641,20 +517,20 @@ int main(){
         {"Scrambler +", scrambler_p_next},
 #endif
 //		{"SplitMix64", splitmix64},
-		{"Doug Lea's", lea_next},
+//		{"Doug Lea's", lea_next},
 //		{"Stafford 13", mix_stafford13},
-		{"MWC64 mix",  mwc64_mix},
+//		{"MWC64 mix",  mwc64_mix},
 		{"mwc64s-mix", mwc64s_mix},
-		{"mwc128-mix", mwc128_mix},
+//		{"mwc128-mix", mwc128_mix},
 //		{"MidSquare", msws64_next},
 //		{"MidSquare mix", ms64_mix},
 		//{"XorShift64 mix", xorshift64s_next},
 		// {"XS-PCG-mixer", xorshift64s_A1_next},
 		// {"XS-LCG-mixer", xorshift64s_A3_next},
 //		{"XorShift mix", xorshift64s1_A3_next},
-		{"Lehmer64 mix", lehmer64_mix},
+//		{"Lehmer64 mix", lehmer64_mix},
 		{"WYrand mix", wyrand_mix},
-		{"WYrand mum", wyrand_mum},
+//		{"WYrand mum", wyrand_mum},
 //        {"MWC64x", mwc64x_next},
 //        {"MWC128", mwc128_next},
 //        {"MWC128x1b", mwc128x1b_next},
@@ -673,7 +549,7 @@ int main(){
 	for (int n=0;n<512;n++) {
 		printf ("----------------------------------%d\n", n);
         for (int k=0;k<n_tests;k++) {
-            gen[k].diff += dif_test(gen[k].name, (cb_next)gen[k].next, NULL, gen[k].sum, n);
+            gen[k].diff += dif_test((cb_next)gen[k].next, NULL, gen[k].sum, n);
             printf("%-16s| %-9.4g\n", gen[k].name, gen[k].diff);
         }
 	}

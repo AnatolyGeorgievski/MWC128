@@ -128,4 +128,13 @@ int   thrd_pool_enqueue(thrd_pool_t *pool, int (*)(void* args), void* args);
 int   thrd_pool_wait   (thrd_pool_t *pool, int* ids);
 void  thrd_pool_free   (thrd_pool_t *pool);
 /*! Графические методы, сохранение в форме таблицы или 2D- изображения. */
+
+
+typedef uint64_t (*cb_next)(void*);
+static inline double difficulty(uint64_t x) {
+	return 1/((double)x+0.5);
+}
+double bic_test(uint64_t (*next)(void*), uint64_t* state, uint64_t *sum, int expN);
+double dif_test(uint64_t (*next)(void*), uint64_t* state, uint64_t *sum, int Nr);
+
 #endif //_MWC_H
