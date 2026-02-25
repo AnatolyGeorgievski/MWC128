@@ -10,14 +10,9 @@
 
 #include "Mathmult.h"
 
-//#define C2 	        UINT64_C(0x100000001b3) -- было
+#define C_ 	        UINT64_C(0x100000001b3)// -- было
 #define C1 	        UINT64_C(0xcbf29ce484222325)
 #define C2 	        UINT64_C(0xa3b195354a39b70d)
-#define C4  UINT64_C(0xae7a58388aad96a9)
-#define C8  UINT64_C(0xa3b9b6132d147b91)
-#define C16 UINT64_C(0x163eb89a844ca821)
-#define C32 UINT64_C(0xbe44dc0a4a035441)
-#define C64 UINT64_C(0xd50039d4a940b881)
 
 static FORCE_INLINE uint64_t _mum( uint64_t A, uint64_t B) {
     uint64_t rlo, rhi;
@@ -38,6 +33,16 @@ static void FNV1a( const void * in, size_t len, uint64_t seed, void * out ) {
     h = _mum(h^h>>32, C2);// добавил миксер на выход функции
     PUT_U64<bswap>(h, (uint8_t *)out, 0);
 }
+
+#define C4      UINT64_C(0xc6d1c7090d80a0c1) // 58
+#define C8      UINT64_C(0x6ea6874e279bc981) // 57
+#define C16     UINT64_C(0x89322654043917d7) // 61
+#define C32     UINT64_C(0x6f1ff84abce59834) // 5
+#define C64     UINT64_C(0xbba67ec8e53c77f6) // 6
+#define C128    UINT64_C(0xf1527cc4a5bca09f) // 59
+#define C256    UINT64_C(0xd0e4c4ff2e99481e) // 6
+#define C512    UINT64_C(0x63c381f839f73075) // 62
+
 template <bool bswap>
 static void FNV1a_fast( const void * in, size_t len, uint64_t seed, void * out ) {
     const uint8_t * data = (const uint8_t *)in;
@@ -67,18 +72,27 @@ static void FNV1a_fast( const void * in, size_t len, uint64_t seed, void * out )
         len-=8; data+=8;
     }
     while (len-->0)
-        h = (h^*data++) * C2;
+        h = _mum(h^*data++,C2);
     h = _mum(h^h>>32, C2);// добавил миксер на выход функции
     PUT_U64<bswap>(h, (uint8_t *)out, 0);
 }
 // В этой версии использован миксер rhi + rlo из проекта MUM-hash
 template <bool bswap>
+static void FNV1a_mix( const void * in, size_t len, uint64_t seed, void * out ) {
+    const uint8_t * data = (const uint8_t *)in;
+    uint64_t h = _mum(C1^seed, C2);// добавил миксер на SEED
+    while (len-->0)
+        h = _mix(h^*data++, C2);// миксер как в проекте MUM-hash
+    h = _mum(h^h>>32, C2);// добавил миксер на выход функции
+    PUT_U64<bswap>(h, (uint8_t *)out, 0);
+}
+template <bool bswap>
 static void FNV1a_mum( const void * in, size_t len, uint64_t seed, void * out ) {
     const uint8_t * data = (const uint8_t *)in;
     uint64_t h = _mum(C1^seed, C2);// добавил миксер на SEED
-    for (size_t i = 0; i < len; i++)
-        h = _mix(h^data[i], C2);// миксер как в проекте MUM-hash
-    h = _mum(h^h>>32, C2);// добавил миксер на выход функции
+    while (len-->0)
+        h = _mum(h^*data++, C2);// миксер как в проекте MUM-hash
+    h = _mum(h, C2);// добавил миксер на выход функции
     PUT_U64<bswap>(h, (uint8_t *)out, 0);
 }
 REGISTER_FAMILY(fnv1a,
@@ -107,13 +121,27 @@ REGISTER_HASH(FNV1a_64__fast,
          FLAG_IMPL_MULTIPLY_64_64 |
          FLAG_IMPL_LICENSE_PUBLIC_DOMAIN,
    $.bits = 64,
-   $.verification_LE = 0x46720F0C,
-   $.verification_BE = 0xA66619D4,
+   $.verification_LE = 0x8027FA7E,
+   $.verification_BE = 0xA8D080D9,
    $.hashfn_native   = FNV1a_fast<false>,
    $.hashfn_bswap    = FNV1a_fast<true>
  );
-REGISTER_HASH(FNV1a_64__mum,
+REGISTER_HASH(FNV1a_64__mix,
    $.desc       = "64-bit bytewise FNV-1a with Seed and MUM-mixer",
+   $.hash_flags =
+         0,
+   $.impl_flags =
+         FLAG_IMPL_MULTIPLY_64_64 |
+         FLAG_IMPL_LICENSE_PUBLIC_DOMAIN    |
+         FLAG_IMPL_VERY_SLOW,
+   $.bits = 64,
+   $.verification_LE = 0x82902BDE,
+   $.verification_BE = 0x57F87794,
+   $.hashfn_native   = FNV1a_mix<false>,
+   $.hashfn_bswap    = FNV1a_mix<true>
+ );
+REGISTER_HASH(FNV1a_64__mum,
+   $.desc       = "64-bit bytewise FNV-1a with Seed and wymum-mixer",
    $.hash_flags =
          0,
    $.impl_flags =

@@ -10,7 +10,7 @@ static inline int mp_equ_ui(const uint64_t* s, uint64_t a){
 	return (a==s[0]);
 }
 #define MAX_SIZE 0x1FFFF
-uint32_t prime[MAX_SIZE];
+uint32_t prime[MAX_SIZE+1];
 uint32_t prime_size=0;
 static bool is_prime(uint64_t a, int size){
 	for (int i=0; i<size && (a>>1)>=prime[i]; i++)
@@ -91,7 +91,7 @@ int main(){
 	genprimes();
 	uint64_t a;
 	uint64_t p[MP_SIZE] = {-1, -1};
-if (0) {// генерация констант для MWC128
+if (1) {// генерация констант для MWC128
 	a = UINT64_C(0xffebb71d94fcdaf9);
 	p[MP_SIZE-1]  = a-1;
 	if (powm_tst2(p, 25)){
@@ -100,7 +100,7 @@ if (0) {// генерация констант для MWC128
 	if ((a%3)==0 && is_prime((~a)-1, prime_size)) printf(" ..ok\n");
 	mp_shr(p,1);
 	if (powm_tst2(p, 2)) printf("P/2 ..prime\n");
-	if (0){// другой вариант стартовой точки
+	if (1){// другой вариант стартовой точки
 		a = UINT64_C(0xff3a275c007b8ee6);
 		p[MP_SIZE-1]  = a-1;p[0]=-1;
 		mp_shr(p,1);
@@ -109,15 +109,17 @@ if (0) {// генерация констант для MWC128
 	if(a%3==0) 
 	for (uint64_t k=0; k<0x3FFFFFF; k++, a+=3){// вычисление начиная с данного a
 		p[MP_SIZE-1]  = a-1;p[0]=-1;
-		if (powm_tst2(p, 5))// тест Ферма для первых 5 простых чисел
+		if (__builtin_popcountll(a)==32 && __builtin_popcount((uint16_t)a)==8 && __builtin_popcount((uint16_t)a&0xFF00)==8) 
+		if (powm_tst2(p, 2))// тест Ферма для первых 5 простых чисел
 		//if ((a%3)==0) -- все делятся на 3
 		//if (rem(p, 24)==23) -- все делятся
-		if (has_max_order(a)) // максимальный порядок группы {Z/2^{64}Z}+
+//		if (has_max_order(a)) // максимальный порядок группы {Z/2^{64}Z}+
+		//if (is_prime(a,prime_size))
 		if (is_prime((~a)-1, prime_size)) // -- мой тест, выбор чисел A может быть основан на множесте простых чисел
 		if (mp_is_prime(p, prime_size))
 		{// printf("!");
 			mp_shr(p,1);
-			if (mp_is_prime(p, prime_size) && powm_tst2(p, 5))// тест на safe prime
+			if (mp_is_prime(p, prime_size) /* && powm_tst2(p, 5)*/)// тест на safe prime
 				printf("%016llx ..prime\n", a);
 		}
 	}
@@ -147,10 +149,10 @@ if (1) {// генерация констант для MWC64r2
 	if((a>>32)%3==0) 
 	for (uint64_t k=0; k<0x3FFFFFF; k++, a-=(3uLL<<32)){// вычисление начиная с данного a
 		p[MP_SIZE-1]  = a-1;p[0]=-1;
+		//if (__builtin_popcount(a>>32)==16)
 		if (powm_tst2(p, 5))// тест Ферма для первых 5 простых чисел
 		//if ((a%3)==0) -- все делятся на 3
 		//if (rem(p, 24)==23) -- все делятся
-		//if (has_max_order32(a>>32)) // максимальный порядок группы {Z/2^{64}Z}+
 		if (is_prime((~(a>>32))-1, prime_size)) // -- мой тест, выбор чисел A может быть основан на множестве простых чисел
 		if (mp_is_prime(p, prime_size))
 		{// printf("!");

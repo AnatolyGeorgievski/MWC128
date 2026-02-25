@@ -1,3 +1,13 @@
+WARNING: Hash with verification code 4b032b63 was already registered: FNV-1a-64
+         Are you certain MWC64-64 is a unique implementation?
+WARNING: Hash with verification code 4b032b63 was already registered: FNV-1a-64
+         Are you certain MWC64s-64 is a unique implementation?
+WARNING: Hash with verification code 305e8d1d was already registered: MWC64s-64
+         Are you certain MWC192-128 is a unique implementation?
+WARNING: Hash with verification code 4b032b63 was already registered: FNV-1a-64
+         Are you certain MWC192-128 is a unique implementation?
+WARNING: Hash with verification code b96abe81 was already registered: XXH-64
+         Are you certain xxh64-64 is a unique implementation?
 -------------------------------------------------------------------------------
 --- Testing FNV1a-64.fast "64-bit FNV-1a with Seed and wymum-mixer"
 

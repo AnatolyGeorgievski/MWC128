@@ -78,6 +78,7 @@ int main(int argc, char* argv[]){
 		uint64_t a0 = (a-1)>>__builtin_ctz(a-1);
 		if (is_prime(a0,i))
 		if (is_prime(a,i))
+		if (__builtin_popcount(a>>32)==16 && __builtin_popcount((a>>40)&0xFFFF)==8 && __builtin_popcount((a>>32)&0xFF)==4)
 		if (Proth_test(a)) {
 			int w = 1;
 			while (w<(1uLL<<32) && powm(a>>32, (a-1)/w, a)==1) w<<=1;
