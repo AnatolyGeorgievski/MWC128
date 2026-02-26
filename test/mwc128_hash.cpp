@@ -38,6 +38,15 @@ static inline uint64_t _mum( uint64_t A, uint64_t B) {
     MathMult::mult64_128(rlo, rhi, B, A);
     return rlo ^ rhi;
 }
+// -log2(p-value) summary: Если операция XOR
+//           0     1     2     3     4     5     6     7     8     9    10    11    12
+//         ----- ----- ----- ----- ----- ----- ----- ----- ----- ----- ----- ----- -----
+//          6044  1318   612   345   166    70    42    15     8     3     2     1     1
+// -log2(p-value) summary: Если операция ADD
+//           0     1     2     3     4     5     6     7     8     9    10    11    12  
+//         ----- ----- ----- ----- ----- ----- ----- ----- ----- ----- ----- ----- -----
+//          6069  1326   589   333   141    82    48    23     7     4     4     1     0
+
 
 static inline void mwc128_next(uint64_t* state, uint64_t d, int r) {
 	uint128_t  t =*(uint128_t*)state + d;
@@ -81,7 +90,6 @@ void mwc128_hash(const void *in, size_t len, uint64_t seed, void* out) {
         PUT_U64<bswap>(d1, (uint8_t *)out,  8);
     }
 }
-
 #define MWC_A2 0xffa04e67b3c95d86u // MWC192, B2 = 1<<128
 static inline void mwc192_next(uint64_t* state, uint64_t d, int r) {
 	uint128_t  t =((uint128_t)state[0]<<64|state[1])+d;
@@ -161,11 +169,47 @@ static inline uint64_t mwc_mod(uint128_t ac, uint64_t M, uint64_t M_INV) {
     static const uint64_t j128 = UINT64_C(0x86E141001432DA26);
 
 static inline uint128_t mwc_foldm(uint128_t h, uint128_t d, const uint64_t j1, const uint64_t j2, const uint64_t M);
+
+template <bool bswap>
+void mwc64_hash_xor(const void* in, size_t len, uint64_t seed, void* out){
+    const uint8_t* data = (const uint8_t*)in;
+    uint64_t hash = unmix(seed ^ IV);
+#ifdef __SIZEOF_INT128__
+    if (len>=32) {
+        uint128_t h = (uint128_t)hash;
+        while (len>=8) {
+            uint64_t d0 = (*(uint64_t*) data); data+=8; 
+            h^= d0;
+            h = (h>>64) + (uint64_t)h * (uint128_t)j64;// round mix 128
+            len -= 8;
+        }
+        len &= 7;
+        hash = mwc_mod(h, MWC_PRIME, MWC_INV);
+    }
+#endif
+    while (len>=4){
+        hash^= (*(uint32_t*) data); data+=4;
+        hash = _next(hash, 32);
+        len -= 4;
+    }
+    if (len&2){
+        hash^= *(uint16_t*) data; data+=2;
+        hash = _next(hash, 16);
+    }
+    if (len&1){
+        hash^= *(uint8_t*) data; data+=1;
+        hash = _next(hash, 8);
+    }
+    uint64_t d = mix(hash)^IV;
+    PUT_U64<bswap>(d, (uint8_t *)out,  0);
+}
+
 template <bool bswap>
 void mwc64_hash(const void* in, size_t len, uint64_t seed, void* out){
     const uint8_t* data = (const uint8_t*)in;
-//    uint64_t hash = unmix_lea(seed+IV);
-    uint64_t hash = _mum(seed += IV, UINT64_C(0x82d2e9550235efc5));
+    uint64_t hash = unmix(seed + IV);
+//    uint64_t hash = _mum(seed + IV, UINT64_C(0x82d2e9550235efc5));
+#ifdef __SIZEOF_INT128__
     if (len>=32) {
         uint128_t h = (uint128_t)hash;
         while (len>=8) {
@@ -184,6 +228,7 @@ void mwc64_hash(const void* in, size_t len, uint64_t seed, void* out){
         // }
         hash = mwc_mod(h, MWC_PRIME, MWC_INV);
     }
+#endif
     unsigned int blocks = (len>>2);
     for (unsigned int i=0; i<blocks; i++)
     {
@@ -198,8 +243,8 @@ void mwc64_hash(const void* in, size_t len, uint64_t seed, void* out){
         hash+= *(uint8_t*) data; data+=1;
         hash = _next(hash, 8);
     }
-//    uint64_t d = mix(hash)-IV;
-    uint64_t d = _mum(hash+=seed, UINT64_C(0xa3b195354a39b70d));
+    uint64_t d = mix(hash)-IV;
+//    uint64_t d = _mum(hash^hash>>32, UINT64_C(0xa3b195354a39b70d))-IV;
     PUT_U64<bswap>(d, (uint8_t *)out,  0);
 }
 
@@ -232,6 +277,19 @@ REGISTER_HASH(MWC64_64,
    $.verification_BE = 0x4B032B63,
    $.hashfn_native   = mwc64_hash<false>,
    $.hashfn_bswap    = mwc64_hash<true>
+ );
+REGISTER_HASH(MWC64_64__xor,
+   $.desc       = "64-bit MWC-64",
+   $.hash_flags =
+        0,
+   $.impl_flags =
+        FLAG_IMPL_MULTIPLY   |
+        FLAG_IMPL_LICENSE_PUBLIC_DOMAIN,
+   $.bits = 64,
+   $.verification_LE = 0x3EBAAF43,
+   $.verification_BE = 0x4B032B63,
+   $.hashfn_native   = mwc64_hash_xor<false>,
+   $.hashfn_bswap    = mwc64_hash_xor<true>
  );
 REGISTER_HASH(MWC64s_64,
    $.desc       = "64-bit MWC-64 signed",

@@ -94,6 +94,17 @@ int _max_order(uint64_t x) {
 	} while (--count);
     return 64-count;
 }
+static uint64_t inverse_u64(uint64_t a) {
+    uint64_t x = a;
+    // 5 итераций — стандарт для 64 бит
+    x *= 2ULL - a * x;
+    x *= 2ULL - a * x;
+    x *= 2ULL - a * x;
+    x *= 2ULL - a * x;
+    x *= 2ULL - a * x;
+    return x;
+}
+
 //make your own secret
 static void make_secret(uint64_t seed, uint64_t *secret, int N){
 // Это все возможные комбинации выбора 4-x бит из 8 бит.
@@ -126,11 +137,11 @@ int is_perfect(uint64_t x){
     } while (--count);
     return count;
 }
-static void make_secretN(uint64_t seed, int N){
+static void make_secretN(uint64_t seed, int Nr){
 // так мы синтезируем число с одинаковым числом 1 единиц
   uint8_t c[] = {15, 23, 27, 29, 30, 39, 43, 45, 46, 51, 53, 54, 57, 58, 60, 71, 75, 77, 78, 83, 85, 86, 89, 90, 92, 99, 101, 102, 105, 106, 108, 113, 114, 116, 120, 135, 139, 141, 142, 147, 149, 150, 153, 154, 156, 163, 165, 166, 169, 170, 172, 177, 178, 180, 184, 195, 197, 198, 201, 202, 204, 209, 210, 212, 216, 225, 226, 228, 232, 240 };
 
-    int count = 512, i=2, ord;
+    int count = Nr, i=2, ord;
     uint64_t s = 0,s2,s4,s8,s16;
     do {
         do {
@@ -148,7 +159,7 @@ int main(){
     uint64_t C1 = UINT64_C(0x9e3779b97f4a7c15);
     uint64_t s0 = UINT64_C(0x9e3779b97f4a7c15);
 //    uint64_t C1 = UINT64_C(0xcbf29ce484222325);
-    make_secretN(s0, 512);
+if(0)     make_secretN(s0, 512);
 const int M = 8;
     uint64_t secrets[M];
     make_secret(C1, secrets, M);
@@ -165,12 +176,17 @@ const int M = 8;
     }
 
 //    uint64_t C2 = UINT64_C(0xa3b195354a39b70d);
-    uint64_t C2 = UINT64_C(0x938d8ea693c51b8b);//0x8b4e7465b45a2765; 0x8ee46636d4ac998d, 0x938d8ea693c51b8b
-    printf("C%d\tUINT64_C(0x%016llx)// %2d %2d\n", 2, C2, _max_order(C2), __builtin_popcountll(C2));
+//    uint64_t C2 = UINT64_C(0x938d8ea693c51b8b);//0x8b4e7465b45a2765; 0x8ee46636d4ac998d, 0x938d8ea693c51b8b
+    uint64_t C2 = 0xb17269ac631da58b;// (10) 
+//    uint64_t C2 = 0x99e4d4b2e459691d;// (10)
+//    0x552e96659c1b8b4b () 0xb1c5e4b1accca9a5 0xc9965cd4398ecca3
+    uint64_t C2_ = inverse_u64(C2);
+    printf("C%d\tUINT64_C(0x%016llx)// %2d %2d inv=0x%016llx %lld\n", 2, C2, _max_order(C2), __builtin_popcountll(C2), C2_, C2_*C2);
     for (int i=0; i< 8; i++){
         C2=C2*C2;//_wymix(C2,C2);
         int ord = _max_order(C2);
-        printf("#define C%d\tUINT64_C(0x%016llx) // %2d %2d\n", 4<<i, C2, ord, __builtin_popcountll(C2));
+        uint64_t Ci = inverse_u64(C2);
+        printf("#define C%d\tUINT64_C(0x%016llx) // inv =0x%016llx ord=%2d %2d\n", 4<<i, C2, Ci, ord, __builtin_popcountll(C2));
     }
 
     return 0;
