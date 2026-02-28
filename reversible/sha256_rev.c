@@ -55,12 +55,13 @@ static const uint32_t H0[] = {
 	0x510e527f, 0x9b05688c, 0x1f83d9ab, 0x5be0cd19
 };
 
-void SHA256(uint32_t *H, const uint32_t *M){
+void SHA256(uint32_t *H, const uint32_t *M, uint32_t *W_state){
     uint32_t W[16];
     int t;
 	uint32_t a = H[0],b = H[1],c = H[2],d = H[3],
 		     e = H[4],f = H[5],g = H[6],h = H[7];
-	if(0)printf ("%08X %08X %08X %08X %08X %08X %08X %08X\n", a,b,c,d,e,f,g,h);
+	if(1)
+	printf ("forward:  %08X %08X %08X %08X %08X %08X %08X %08X\n", a,b,c,d,e,f,g,h);
 #define ROUND(a,b,c,d,e,f,g,h,i) ({\
 	h += K[i] + W[i&15];  \
 	uint32_t x = Sum1(e) + Ch (e,f,g); \
@@ -103,7 +104,14 @@ void SHA256(uint32_t *H, const uint32_t *M){
 		W[15] = M[15];
         ROUND(b,c,d,e,f,g,h,a,t+15);
     }
-    for (t=16; t<64; t+=16)
+
+if (1) {
+	printf("forward:  W[] =");
+	for (int i=0; i<15; i++) printf ("%02X ", W[i]);
+	printf("\n");
+}
+
+	for (t=16; t<64; t+=16)
     {
 		W[0] += sigma1(W[14]) + W[ 9] + sigma0(W[1]);
         ROUND(a,b,c,d,e,f,g,h,t+0);
@@ -144,17 +152,24 @@ void SHA256(uint32_t *H, const uint32_t *M){
 	H[4]+=e,H[5]+=f,H[6]+=g,H[7]+=h;	
 
 	printf ("%08X %08X %08X %08X %08X %08X %08X %08X <\n", a,b,c,d,e,f,g,h);
-/*
+	if (W_state) {
+		for (int i=0; i<16; i++)
+			W_state[i] = W[i];
+	}
 }
-void SHA256_rev(uint32_t *H, const uint32_t *H0, const uint32_t *M){
+
+void SHA256_rev(uint32_t *H, const uint32_t *H0, const uint32_t *M, const uint32_t* W_state){
     uint32_t W[16];//={0};
-    int t;
+	for (int i=0; i<16; i++)
+		W[i] = W_state[i];
+
+
+	int t;
 	uint32_t a = H[0]-H0[0],b = H[1]-H0[1],c = H[2]-H0[2],d = H[3]-H0[3],
 		     e = H[4]-H0[4],f = H[5]-H0[5],g = H[6]-H0[6],h = H[7]-H0[7];
-*/
 // пошли обратно:
-//	H[0]-=a,H[1]-=b,H[2]-=c,H[3]-=d,
-//	H[4]-=e,H[5]-=f,H[6]-=g,H[7]-=h;	
+	H[0]-=a,H[1]-=b,H[2]-=c,H[3]-=d,
+	H[4]-=e,H[5]-=f,H[6]-=g,H[7]-=h;	
 
 #define ROUND(a,b,c,d,e,f,g,h,i) ({\
 	uint32_t x = Sum1(e) + Ch (e,f,g); \
@@ -200,7 +215,8 @@ void SHA256_rev(uint32_t *H, const uint32_t *H0, const uint32_t *M){
         ROUND(a,b,c,d,e,f,g,h,t+0);
 		W[0] -= sigma1(W[14]) + W[ 9] + sigma0(W[1]);
 	}
-if (0) {
+if (1) {
+	printf("backward: W[] =");
 	for (int i=0; i<15; i++) printf ("%02X ", W[i]);
 	printf("\n");
 }
@@ -244,7 +260,8 @@ if (0) {
 	H[0]=a,H[1]=b,H[2]=c,H[3]=d,
 	H[4]=e,H[5]=f,H[6]=g,H[7]=h;
 
-	if(1)printf ("%08X %08X %08X %08X %08X %08X %08X %08X\n", a,b,c,d,e,f,g,h);
+	if(1)
+	printf ("backward: %08X %08X %08X %08X %08X %08X %08X %08X\n", a,b,c,d,e,f,g,h);
 	//uint32_t H1[8] = {}
 	if (__builtin_memcmp(W, M, 32)==0)printf ("ok\n");
 	//if (H0[0] == a && H0[1]==b && H0[2]==c && H0[3]==d && H0[7]==h)printf ("ok\n");
@@ -264,11 +281,12 @@ int main (){
 
 	uint32_t Hello[16]= {0,1,2,3,4,5,6,7,8,9,10,11,12,13,14,15};
 	uint32_t H[8];
+	uint32_t W[16];
 	for(int k=0; k<3; k++){
 		for (int i=0; i<8; i++) H[i] = H0[i];
-		Hello[0] =k*6;
-		SHA256(H, Hello);
-		//SHA256_rev(H, H0, Hello);
+		Hello[0] =k*0x123456;
+		SHA256(H, Hello, W);
+		SHA256_rev(H, H0, Hello, W);
 	}
 	return 0;
 }
