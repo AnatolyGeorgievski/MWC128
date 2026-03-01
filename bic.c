@@ -4,23 +4,45 @@
 
 #define M 32
 #include <x86intrin.h>
+
+typedef uint8_t  uint8x32_t __attribute__((__vector_size__(32)));
 // посчитать число бит в каждой позиции
-static inline uint8_t* HistogramBits( uint64_t x, int N_bits, uint8_t * v ) {
+static inline 
+uint8_t* HistogramBits( uint64_t x, int N_bits, uint8_t * v ) {
 // использовать инструкции AVX2 и AVX512 - с маской __mmask32
-#if defined(__AVX2__)
+#if 0//defined(__AVX512BW__)
+	const __m512i ONE  = _mm512_set1_epi8(1);
+	__mmask64 mask = x;
+	__m512i cnt = _mm512_loadu_si512(v);
+	cnt = _mm512_mask_add_epi8 (cnt, mask, cnt, ONE);
+	_mm512_storeu_si512(v, cnt);
+#elif defined(__AVX2__)
     const __m256i ONE  = _mm256_set1_epi8(1);
-    const __m256i MASK = _mm256_set1_epi64x(0x8040201008040201u);
+//    const __m256i MASK = _mm256_set1_epi64x(0x8040201008040201u);
+    const __m256i MASK = _mm256_setr_epi32(
+		0x01010101u<<0, 0x01010101u<<1, 0x01010101u<<2, 0x01010101u<<3,
+		0x01010101u<<4, 0x01010101u<<5, 0x01010101u<<6, 0x01010101u<<7
+	 );
+	const uint8x32_t ORDER = {
+			0,4, 8,12,16,20,24,28,  
+			1,5, 9,13,17,21,25,29, 
+			2,6,10,14,18,22,26,30, 
+			3,7,11,15,19,23,27,31};
 	for (int i=0; i<2; i++){
         uint32_t word = x>>(i*32);
         __m256i base  = _mm256_set1_epi32(word);
 		__m256i cnt = _mm256_loadu_si256((const __m256i *)v);
         __m256i inc = _mm256_min_epu8(_mm256_and_si256(base, MASK), ONE);
+		inc = (__m256i)__builtin_shuffle ((uint8x32_t)inc, ORDER);
 		        cnt = _mm256_add_epi8(cnt, inc);
 		_mm256_storeu_si256((__m256i_u *)v, cnt); v += 32;
     }
 #else
-	for (int i=0; i<64; i++){
-		*v++ += (x>>i) & 1;
+	for (int k=0; k<2;k++) {
+		uint32_t word = x>>(k*32);
+		for (int i=0; i<32; i++){
+			*v++ += (word>>i) & 1;
+		}
 	}
 #endif
 	return v;

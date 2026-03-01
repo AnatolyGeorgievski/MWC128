@@ -243,11 +243,11 @@ static uint64_t mwc64s_mix(){
 	return y;
 }
 static uint64_t mwc64_mix() {
-	const  uint64_t A0 = 0xfffe59a7u;//0xfffebaeb;
+	const  uint64_t A0 = 0xFFFF34CBu;//0xfffe59a7u;//0xfffebaeb;
 	static uint64_t x = 0;
 	uint64_t y = (x += gamma);
 	y = (y>>32) + (uint32_t)y*A0;
-	y = (y>>32) + (uint32_t)y*A0;
+//	y = (y>>32) + (uint32_t)y*A0;
 	return y;
 }
 // da942042e4dd58b5 ..yes 8b838d0354ead59d
@@ -422,7 +422,17 @@ uint64_t xoroshiro128ss_next()
 	s[1] = rotl(s1, 37); // c
 	return r;
 }
-
+// M = 0x9fb21c651e98df25L, S = 28, R1 = 49, R2 = 24
+uint64_t rrmxmx() {
+	static uint64_t v = 0;
+	v += gamma;
+  const uint64_t M = 0x9fb21c651e98df25u;
+  v ^= rotr(v, 49) ^ rotr(v, 24); // сюда подойдут SHA-скрамблеры
+  v *= M;
+  v ^= v >> 28;
+  v *= M;
+  return v ^ v >> 28;
+}
 uint64_t lehmer64_next() {
 	static __uint128_t state=0;
     state *= 0xda942042e4dd58b5ULL;   // фиксированный множитель (хороший 64-бит → 128-бит)
@@ -449,11 +459,27 @@ static inline uint64_t _wymix(uint64_t A, uint64_t B){
     _wymum(&A,&B); 
     return A^B; 
 }
+static inline uint64_t _gmix(uint64_t A, uint64_t B){ 
+    _wymum(&A,&B); 
+    return A^B^(B>>32); 
+}
+static inline uint64_t mum_mix(uint64_t A, uint64_t B){ 
+    _wymum(&A,&B); 
+    return A+B;
+}
+static inline uint64_t msm_mix(uint64_t A, uint64_t B){ 
+    _wymum(&A,&B); 
+    return A-B;//+(A<<32)-A; 
+}
+static inline uint64_t mgm_mix(uint64_t A, uint64_t B){ 
+    _wymum(&A,&B); 
+    return A-B +(B<<32); 
+}
 // wyhash (автор Wang Yi, ~2019 год, последняя стабильная версия — final3/final4)
 static uint64_t wyrand_mix() {
 	static uint64_t s = 0;
     s += gamma;//0x60bee2bee120fc15ULL;
-    return _wymix(s, 0x938d8ea693c51b8b);//0x8b4e7465b45a2765u;0xa3b195354a39b70dULL;0x938d8ea693c51b8b
+    return _wymix(s, 0x99e4d4b2e459691du);//0x938d8ea693c51b8b);//0x8b4e7465b45a2765u;0xa3b195354a39b70dULL;0x938d8ea693c51b8b
 }
 static inline uint64_t wyrand_mum(uint64_t *seed){ 
 	static uint64_t s = 0;
@@ -468,6 +494,11 @@ static uint64_t _mum_primes[] = {
   0x3bc721b2aad05197, 0x71b1a19b907d6e33, 0x525e6c1084a8534b, 0x9e4c2cd340c1299f,
   0xde3add92e94caa37, 0x7e14eadb1f65311d, 0x3f5aa40f89812853, 0x33b15a3b587d15c9,
 };
+static inline uint64_t rand_mum(){ 
+	static uint64_t s = 0;
+    s += gamma;//0x2d358dccaa6c78a5ull; 
+    return mum_mix(s,0x9ebdcae10d981691u);
+}
 
 #define M 32 // число разрядов в тесте
 #if defined(TEST_SCRAMBLER)
@@ -498,8 +529,6 @@ int main(){
         {"Scrambler Sum0-32", scrambler_sum032_next},
         {"Scrambler Sum1-32", scrambler_sum132_next},
 #endif
-        {"Scrambler Sigma0", scrambler_sigma0_next},
-        {"Scrambler Sigma1", scrambler_sigma1_next},
 #if 0
 		{"Scrambler 1-64", scrambler_1_next},
         {"Scrambler 2-64", scrambler_2_next},
@@ -520,16 +549,18 @@ int main(){
 //		{"Doug Lea's", lea_next},
 //		{"Stafford 13", mix_stafford13},
 		{"MWC64 mix",  mwc64_mix},
-		{"mwc64s-mix", mwc64s_mix},
+//		{"mwc64s-mix", mwc64s_mix},
 //		{"mwc128-mix", mwc128_mix},
+//		{"rrmxmx", rrmxmx},
 //		{"MidSquare", msws64_next},
 //		{"MidSquare mix", ms64_mix},
 		//{"XorShift64 mix", xorshift64s_next},
 		// {"XS-PCG-mixer", xorshift64s_A1_next},
 		// {"XS-LCG-mixer", xorshift64s_A3_next},
-		{"XorShift mix", xorshift64s1_A3_next},
+//		{"XorShift mix", xorshift64s1_A3_next},
 //		{"Lehmer64 mix", lehmer64_mix},
 		{"WYrand mix", wyrand_mix},
+		{"MUM mix", rand_mum},
 //		{"WYrand mum", wyrand_mum},
 //        {"MWC64x", mwc64x_next},
 //        {"MWC128", mwc128_next},

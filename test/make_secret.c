@@ -188,6 +188,21 @@ const int M = 8;
         uint64_t Ci = inverse_u64(C2);
         printf("#define C%d\tUINT64_C(0x%016llx) // inv =0x%016llx ord=%2d %2d\n", 4<<i, C2, Ci, ord, __builtin_popcountll(C2));
     }
-
+    /*
+Mersenne
+prime 0xfffffffffffffc01 10
+prime 0xfffffffffffff001 12
+prime 0xffffffffff000001 24
+prime 0xffffffff00000001 32
+prime 0xfffffffc00000001 34
+prime 0xffffff0000000001 40
+    
+    */
+for (int i=1; i<64; i++){
+    uint64_t p = -(1uLL<<i) +1;
+    if (is_prime(p)){
+        printf("prime 0x%016llx %d\n", p, i);
+    }
+}
     return 0;
 }

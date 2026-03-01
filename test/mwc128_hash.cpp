@@ -148,7 +148,7 @@ void mwc64s_hash(const void* in, size_t len, uint64_t seed, void* out){
     uint32_t d = mix_lea((uint64_t)hash)-IV;
     PUT_U32<bswap>(d, (uint8_t *)out,  0);
 }
-#define MWC_A0  0xfffe59a7uLL//fffeb81bULL
+#define MWC_A0  0xFFFF1EBDuLL//0xfffe59a7uLL//fffeb81bULL
 #define MWC_NA0 0x1A659
 #define MWC_INV UINT64_C(0x0001A65BB8CE0887)
 #define MWC_J64 UINT64_C(0xFFFCB350B8C98AF1)
@@ -158,7 +158,7 @@ void mwc64s_hash(const void* in, size_t len, uint64_t seed, void* out){
 static inline uint64_t _next(uint64_t x, int r){
     return ((uint32_t)x<<(32-r))*MWC_A0 + (x>>r);
 }
-static const uint64_t j64  = UINT64_C(0xFFFCB350B8C98AF1);
+static const uint64_t j64  = (MWC_A0*MWC_A0);//UINT64_C(0xFFFCB350B8C98AF1);
 static inline uint64_t mwc_mod(uint128_t ac, uint64_t M, uint64_t M_INV) {	
 	ac-= (((ac>>64)*M_INV + ac)>>64)*M;
 	if (ac>>64) ac -= M;
@@ -215,8 +215,8 @@ void mwc64_hash(const void* in, size_t len, uint64_t seed, void* out){
         while (len>=8) {
             uint64_t d0 = (*(uint64_t*) data); data+=8; 
             h+= d0;
-            h = (h>>64 | h<<64) - (uint64_t)h * (uint128_t)j_64;// round mix 128
-//          h = (h>>64)         + (uint64_t)h * (uint128_t)j64;// round mix 128
+//            h = (h>>64 | h<<64) - (uint64_t)h * (uint128_t)j_64;// round mix 128
+            h = (h>>64)         + (uint64_t)h * (uint128_t)j64;// round mix 128
             len -= 8;
         }
         len &= 7;

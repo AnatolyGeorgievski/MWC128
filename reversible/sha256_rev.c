@@ -157,7 +157,9 @@ if (1) {
 			W_state[i] = W[i];
 	}
 }
-
+/*! 
+	Обратный ход с обращением каждого раунда по шагам.
+ */
 void SHA256_rev(uint32_t *H, const uint32_t *H0, const uint32_t *M, const uint32_t* W_state){
     uint32_t W[16];//={0};
 	for (int i=0; i<16; i++)

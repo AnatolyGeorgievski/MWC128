@@ -143,6 +143,14 @@ int llr_test(uint64_t k)
 		v = subm(sqrm(v, N), 2, N);
 	return (v==0);
 }
+int _max_order(uint64_t x) {
+    int count = 64; // 2^61
+    do { 
+		x = (x* x); // x ← x² mod (2⁶⁴ ^ 1)
+		if (x <= 1) return 65-count; 
+	} while (--count);
+    return 64-count;
+}
 int main(int argc, char* argv[]){
 	
 	uint64_t a = 3;
@@ -167,12 +175,20 @@ int main(int argc, char* argv[]){
 0xfffe42fd,0xfffe3b6e,0xfffe398b,0xfffe358f,0xfffe2a76,0xfffe29b9,0xfffe1d0b,0xfffe1c03,
 0xfffe1b3a,0xfffe1702,0xfffe1495,0xfffe0f01,0xfffe03e2,0xfffe03c4,0xfffe00f4,
 		0};
-	for (int k=0; A[k]!=0; k++){
-		a = ((uint64_t)A[k]<<32)-1;
-		if (llr_test(A[k])) 
-			printf("%2d: A=0x%08X prime =%016llx %2d %d\n",k, A[k], a, a%24, A[k]%3);
-		if (is_prime(((uint64_t)A[k]<<31)-1,i)) // safe prime
-			printf("..safe prime\n");
+//	for (int k=0; A[k]!=0; k++){
+//  uint64_t A0 = A[k];
+	uint64_t A0 = 0xffffFFFFu;//A[k];
+	while (A0%3 != 0) A0--;
+	for (int k=0; k<0xFFFFFF; k++, A0-=3){
+//		if (__builtin_popcount(A0&0xFFF)!=6 ) continue;
+		if (_max_order(A0)!=62) continue;
+		a = ((uint64_t)A0<<32)-1;
+		if (llr_test(A0)) {
+			if (is_prime(((uint64_t)A0<<31)-1,i)) {// safe prime
+				printf("%2d: A=0x%08X prime =%016llx %2d %d\t",k, A0, a, a%24, A0%3);
+				printf("..safe prime ord=%2d %2d\n", _max_order(A0), _max_order(a));
+			}
+		}
 	}
 	return 0;
 }

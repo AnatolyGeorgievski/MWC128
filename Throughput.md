@@ -91,6 +91,22 @@ uint64_t cycles = t1 - t0;
 printf("%.1f cps, \n", cycles/samples, );
 ```
 
+Доработка методики тестирования, чтобы исключить влияние сторонних факторов. Функция должна запускаться в режиме `inline` для заполнения буфера или последовательного вычисления.
+
+```c
+int count = 8;
+t_min = ~0; crc64=~0uLL;
+#define BULK (64*1024)
+do{// методика тестирования производительности
+    __builtin_ia32_lfence();
+    ts = __builtin_ia32_rdtsc();
+    for (int i=0; i<BULK; i++)
+        value[i] = next(state);
+    ts = __builtin_ia32_rdtsc()-ts;
+    if (t_min > ts) t_min = ts;
+} while(--count);
+```
+
 Вывод результатов - 
 1. число тактов на семпл
 2. число байт в секунду, 

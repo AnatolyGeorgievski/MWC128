@@ -1,4 +1,7 @@
 
+/*!
+gcc -std=c99 -Wall -O3 -o test-mwc64r0 test-mwc64r0.c -Iinclude -Llib -ltestu01 -lprobdist -lmylib -lm
+*/
 #include "TestU01.h"
 
 static inline uint64_t rotl(const uint64_t x, int k) {
@@ -44,11 +47,57 @@ int main(int argc, char *argv[]) {
 #if 1
 //0xfffeb81b, //плохо
 //0xfffebaeb,
-0xfffe7369,
-0xfffe59a7,
-0xfffe29b9,0xfffe1d0b,
+// 0xfffe7369,
+// 0xfffe59a7,
+// 0xfffe29b9,0xfffe1d0b,
+//0xFFFEFAA5, 
+0xFFFF1EBDu,
+//0xFFFEE42B,0xFFFECC43,0xFFFECBC5,
+/*
+ 6: A=0xFFFEE9AD prime =fffee9acffffffff 23 0
+..safe prime ord=62 32
+ 9: A=0xFFFEE42B prime =fffee42affffffff 23 0
+..safe prime ord=62 32
+19: A=0xFFFECC43 prime =fffecc42ffffffff 23 0
+..safe prime ord=62 32
+20: A=0xFFFECBC5 prime =fffecbc4ffffffff 23 0
+..safe prime ord=62 32
+23: A=0xFFFEBAEB prime =fffebaeaffffffff 23 0
+..safe prime ord=62 32
+24: A=0xFFFEB81B prime =fffeb81affffffff 23 0
+..safe prime ord=62 32
+29: A=0xFFFEA405 prime =fffea404ffffffff 23 0
+..safe prime ord=62 32
+32: A=0xFFFE9E65 prime =fffe9e64ffffffff 23 0
+..safe prime ord=62 32
+33: A=0xFFFE9835 prime =fffe9834ffffffff 23 0
+..safe prime ord=62 32
+38: A=0xFFFE930D prime =fffe930cffffffff 23 0
+..safe prime ord=62 32
+42: A=0xFFFE8C9B prime =fffe8c9affffffff 23 0
+..safe prime ord=62 32
+45: A=0xFFFE80AD prime =fffe80acffffffff 23 0
+..safe prime ord=62 32
+51: A=0xFFFE6FEB prime =fffe6feaffffffff 23 0
+..safe prime ord=62 32
+55: A=0xFFFE5BD5 prime =fffe5bd4ffffffff 23 0
+..safe prime ord=62 32
+59: A=0xFFFE53E3 prime =fffe53e2ffffffff 23 0
+..safe prime ord=62 32
+60: A=0xFFFE51FD prime =fffe51fcffffffff 23 0
+..safe prime ord=62 32
+64: A=0xFFFE42FD prime =fffe42fcffffffff 23 0
+..safe prime ord=62 32
+66: A=0xFFFE398B prime =fffe398affffffff 23 0
+..safe prime ord=62 32
+70: A=0xFFFE1D0B prime =fffe1d0affffffff 23 0
+..safe prime ord=62 32
+71: A=0xFFFE1C03 prime =fffe1c02ffffffff 23 0
+..safe prime ord=62 32
+74: A=0xFFFE1495 prime =fffe1494ffffffff 23 0
+..safe prime ord=62 32
 
-
+*/
 #else
 // 0xfffe9e65,0xfffe9835,0xfffe982c,0xfffe9736,0xfffe9664,0xfffe944e,0xfffe930d,0xfffe915a,
 // 0xfffe9001,0xfffe8e66,0xfffe8c9b,0xfffe83aa,0xfffe81f1,0xfffe80ad,0xfffe7fa2,0xfffe7a2c,
@@ -121,7 +170,7 @@ for (int i=0; i<sz; i++){
 }
 }
 //return 0;
-	A0 = 0xfffe59a7;
+	A0 = 0xFFFF1EBDu;
 /* Запустить полный тест для выбранных значений */
 	bbattery_Crush(&gen);
 return 0;
