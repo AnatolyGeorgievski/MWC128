@@ -304,6 +304,9 @@ static const struct _CRC_ctx CRC64MS_ctx __attribute__((aligned(16))) = {
 	},
 	{0xFD5D7A0700B5BA38ULL, 0xCEF05CCA14BBF4DFULL},// x^{191}, x^{127}
 	{0xD7EB06822197A109ULL, 0x258C84CBA6427349ULL},// Inv, Prime
+.KF2 = {0x2188097F5687B43CuLL,  0x70BD522114FACEB8uLL},// x^{319}, x^{255}
+.KF3 = {0x717984ED338C465FuLL,  0x4AA4564B4042092BuLL},// x^{447}, x^{383}
+.KF4 = {0xD3E2DC3A51DACEE1uLL,  0xA62BC2D50BF03C03uLL},// x^{575}, x^{511}
 };
 // Обратные числа 0x92D8AF2BAF0E1E85	0xA17870F5D4F51B49
 static const struct _CRC_ctx CRC64WE_ctx __attribute__((aligned(16))) ={
@@ -327,6 +330,9 @@ static const struct _CRC_ctx CRC64WE_ctx __attribute__((aligned(16))) ={
   },
   {0x05F5C3C7EB52FAB6ULL, 0x4EB938A7D257740EULL}, // 128 192
   {0x578D29D06CC4F872ULL, 0x42F0E1EBA9EA3693ULL},
+.KF2 = {0x571BEE0A227EF92BuLL,  0x44BEF2A201B5200CuLL},// x^{256}, x^{320}
+.KF3 = {0x54819D8713758B2CuLL,  0x4A6B90073EB0AF5AuLL},// x^{384}, x^{448}
+.KF4 = {0x5F6843CA540DF020uLL,  0xDDF4B6981205B83FuLL},// x^{512}, x^{576}
 };
 static const struct _CRC_ctx CRC64XZ_ctx __attribute__((aligned(16))) = {
   {
@@ -349,6 +355,9 @@ static const struct _CRC_ctx CRC64XZ_ctx __attribute__((aligned(16))) = {
   },
   {0xE05DD497CA393AE4ULL, 0xDABE95AFC7875F40ULL},// x^{191}, x^{127}
   {0x9C3E466C172963D5ULL, 0x92D8AF2BAF0E1E85ULL},// Inv, Prime
+.KF2 = {0x60095B008A9EFA44uLL,  0x3BE653A30FE1AF51uLL},// x^{319}, x^{255}
+.KF3 = {0xB5EA1AF9C013ACA4uLL,  0x69A35D91C3730254uLL},// x^{447}, x^{383}
+.KF4 = {0x6AE3EFBB9DD441F3uLL,  0x081F6054A7842DF4uLL},// x^{575}, x^{511}
 };
 static const struct _CRC_ctx CRC64NV_ctx __attribute__((aligned(16))) = {
 {
@@ -371,6 +380,10 @@ static const struct _CRC_ctx CRC64NV_ctx __attribute__((aligned(16))) = {
 },
 	{0xEADC41FD2BA3D420ULL,0x21E9761E252621ACULL},
 	{0x27ECFA329AEF9F77ULL,0x34D926535897936BULL},
+.KF2 = {0xB0BC2E589204F500uLL,  0xE1E0BB9D45D7A44CuLL},// x^{319}, x^{255}
+.KF3 = {0xBDD7AC0EE1A4A0F0uLL,  0xA3FFDC1FE8E82A8BuLL},// x^{447}, x^{383}
+.KF4 = {0x0C32CDB31E18A84AuLL,  0x62242240ACE5045AuLL},// x^{575}, x^{511}
+
 };
 static const struct _CRC_ctx CRC64GO_ctx __attribute__((aligned(16))) = {
 {
@@ -391,17 +404,44 @@ static const struct _CRC_ctx CRC64GO_ctx __attribute__((aligned(16))) = {
 [14] = {0x000000000001B000ULL, 0x0000000000010000ULL},// x^{111}, x^{47}
 [15] = {0x00000000000001B0ULL, 0x0000000000000100ULL},// x^{119}, x^{55}
 },
-	{0x6B70000000000001ULL,0xF500000000000001ULL},
-	{0xB000000000000001ULL,0xB000000000000001ULL},
+.KBP = {0xB000000000000001ULL, 0xB000000000000001ULL},
+.K12 = {0x6B70000000000001uLL, 0xF500000000000001uLL},// x^{191}, x^{127}
+.KF2 = {0x1B1AB00000000001uLL, 0xA011000000000001uLL},// x^{319}, x^{255}
+.KF3 = {0x76DB6C7000000001uLL, 0xE145150000000001uLL},// x^{447}, x^{383}
+.KF4 = {0x01B001B1B0000001uLL, 0xB100010100000001uLL},// x^{575}, x^{511}
 };
 
-uint64_t CRC64WE_update_N(uint64_t crc, uint8_t* data, int len){
+uint64_t CRC64_update_N(const CRC_ctx_t *ctx, uint64_t crc, uint8_t* data, int len){
 	poly64x2_t c = {0, crc};
-	int blocks = (len+15 >> 4);
+	int blocks = (len+15) >> 4;
+    if (1 && blocks>7) {// fold by 4x128 bits
+        poly64x2_t c1 = {0}, c2 = {0}, c3 = {0};
+__asm volatile("# LLVM-MCA-BEGIN CRC64_update_N_fold4");
+        do {
+			c ^= (poly64x2_t)REVERSE((uint8x16_t)LOAD128U((void*)(data   )));
+			c1^= (poly64x2_t)REVERSE((uint8x16_t)LOAD128U((void*)(data+16)));
+			c2^= (poly64x2_t)REVERSE((uint8x16_t)LOAD128U((void*)(data+32)));
+			c3^= (poly64x2_t)REVERSE((uint8x16_t)LOAD128U((void*)(data+48)));
+            c  = CL_MUL128(c , ctx->KF4, 0x00) ^ CL_MUL128(c , ctx->KF4, 0x11);
+            c1 = CL_MUL128(c1, ctx->KF4, 0x00) ^ CL_MUL128(c1, ctx->KF4, 0x11);
+            c2 = CL_MUL128(c2, ctx->KF4, 0x00) ^ CL_MUL128(c2, ctx->KF4, 0x11);
+            c3 = CL_MUL128(c3, ctx->KF4, 0x00) ^ CL_MUL128(c3, ctx->KF4, 0x11);
+            blocks-=4, data+=64;
+        } while(blocks>7);
+__asm volatile("# LLVM-MCA-END CRC64_update_N_fold4");
+		c ^= (poly64x2_t)REVERSE((uint8x16_t)LOAD128U((void*)(data   )));
+		c1^= (poly64x2_t)REVERSE((uint8x16_t)LOAD128U((void*)(data+16)));
+		c2^= (poly64x2_t)REVERSE((uint8x16_t)LOAD128U((void*)(data+32)));
+        c  = c3
+		   ^ CL_MUL128(c , ctx->KF3, 0x00) ^ CL_MUL128(c , ctx->KF3, 0x11)
+           ^ CL_MUL128(c1, ctx->KF2, 0x00) ^ CL_MUL128(c1, ctx->KF2, 0x11)
+           ^ CL_MUL128(c2, ctx->K12, 0x00) ^ CL_MUL128(c2, ctx->K12, 0x11);
+        blocks-=3, data+=48;
+    }
 	while (--blocks>0){
 		c^= (poly64x2_t) REVERSE((uint8x16_t)LOAD128U(data)); data+=16;
-		c = CL_MUL128(c, CRC64WE_ctx.K12, 0x11) 
-		  ^ CL_MUL128(c, CRC64WE_ctx.K12, 0x00);
+		c = CL_MUL128(c, ctx->K12, 0x11) 
+		  ^ CL_MUL128(c, ctx->K12, 0x00);
 	}
 	poly64x2_t v={0};
 	len &= 15;
@@ -410,42 +450,59 @@ uint64_t CRC64WE_update_N(uint64_t crc, uint8_t* data, int len){
 	} else
 		v = (poly64x2_t)LOAD128U(data);
 	c^= (poly64x2_t) REVERSE((uint8x16_t)v);
-	c = CL_MUL128(c, CRC64WE_ctx.K34[len], 0x11) 
-	  ^ CL_MUL128(c, CRC64WE_ctx.K34[len], 0x00);
+	c = CL_MUL128(c, ctx->K34[len], 0x11) 
+	  ^ CL_MUL128(c, ctx->K34[len], 0x00);
 
     poly64x2_t 
-	t = CL_MUL128(c, CRC64WE_ctx.KBP, 0x01) ^c;
-	c^= CL_MUL128(t, CRC64WE_ctx.KBP, 0x11) ;
+	t = CL_MUL128(c, ctx->KBP, 0x01) ^c;
+	c^= CL_MUL128(t, ctx->KBP, 0x11) ;
 	return c[0];
-}
-uint64_t CRC64XZ_update_N(uint64_t crc, uint8_t* data, int len){
-	poly64x2_t c = {crc,0};
-	
-	int blocks = (len+15 >> 4);
-	while (--blocks){
-		c ^= (poly64x2_t)LOAD128U(data); data+=16;
-		c = CL_MUL128(c, CRC64XZ_ctx.K12, 0x11) // 192
-		  ^ CL_MUL128(c, CRC64XZ_ctx.K12, 0x00);// 128
-	}
-	len &= 15;
-	if (len){
-		poly64x2_t v = {0};
-		__builtin_memcpy(&v, data, len);
-		c^= v;
-	} else 
-		c^= (poly64x2_t)LOAD128U(data); 
-	c = CL_MUL128(c, CRC64XZ_ctx.K34[len], 0x00) 
-	  ^ CL_MUL128(c, CRC64XZ_ctx.K34[len], 0x11);
-
-	poly64x2_t t = CL_MUL128(c, CRC64XZ_ctx.KBP, 0x00);
-	c ^= SLL128U(t,64) ^ CL_MUL128(t, CRC64XZ_ctx.KBP, 0x10);
-	return c[1];
 }
 uint64_t CRC64B_update_N(const CRC_ctx_t *ctx, uint64_t crc, uint8_t* data, int len){
 	poly64x2_t c = {crc,0};
 	
-	int blocks = (len+15 >> 4);
-	while (--blocks){
+	int blocks = (len+15) >> 4;
+    if (1 && blocks>7) {// fold by 4x128 bits
+        poly64x2_t c1 = {0}, c2 = {0}, c3 = {0};
+__asm volatile("# LLVM-MCA-BEGIN CRC64B_update_N_fold4");
+        do {
+			c ^= (poly64x2_t)LOAD128U((void*)(data   ));
+			c1^= (poly64x2_t)LOAD128U((void*)(data+16));
+			c2^= (poly64x2_t)LOAD128U((void*)(data+32));
+			c3^= (poly64x2_t)LOAD128U((void*)(data+48));
+            c  = CL_MUL128(c , ctx->KF4, 0x00) ^ CL_MUL128(c , ctx->KF4, 0x11);
+            c1 = CL_MUL128(c1, ctx->KF4, 0x00) ^ CL_MUL128(c1, ctx->KF4, 0x11);
+            c2 = CL_MUL128(c2, ctx->KF4, 0x00) ^ CL_MUL128(c2, ctx->KF4, 0x11);
+            c3 = CL_MUL128(c3, ctx->KF4, 0x00) ^ CL_MUL128(c3, ctx->KF4, 0x11);
+            blocks-=4, data+=64;
+        } while(blocks>7);
+__asm volatile("# LLVM-MCA-END CRC64B_update_N_fold4");
+        c ^= (poly64x2_t)LOAD128U((void*)(data   ));
+        c1^= (poly64x2_t)LOAD128U((void*)(data+16));
+        c2^= (poly64x2_t)LOAD128U((void*)(data+32));
+        c  = c3
+		   ^ CL_MUL128(c , ctx->KF3, 0x00) ^ CL_MUL128(c , ctx->KF3, 0x11)
+		   ^ CL_MUL128(c1, ctx->KF2, 0x00) ^ CL_MUL128(c1, ctx->KF2, 0x11)
+           ^ CL_MUL128(c2, ctx->K12, 0x00) ^ CL_MUL128(c2, ctx->K12, 0x11);
+        blocks-=3, data+=48;
+    }
+    if (0 && blocks>3) {// fold by 2x128 bits
+        poly64x2_t c1 = {0};
+__asm volatile("# LLVM-MCA-BEGIN CRC64B_update_N_fold2");
+        do {
+			c ^= (poly64x2_t)LOAD128U((void*)(data   ));
+			c1^= (poly64x2_t)LOAD128U((void*)(data+16));
+            //c  = CL_MUL128(c, ctx->K12, 0x00) ^ CL_MUL128(c, ctx->K12, 0x11);
+            c  = CL_MUL128(c, ctx->KF2, 0x00) ^ CL_MUL128(c, ctx->KF2, 0x11);
+            c1 = CL_MUL128(c1, ctx->KF2, 0x00) ^ CL_MUL128(c1, ctx->KF2, 0x11);
+            blocks-=2, data+=32;
+        } while(blocks>3);
+__asm volatile("# LLVM-MCA-END CRC64B_update_N_fold2");
+        c ^= (poly64x2_t)LOAD128U((void*)data);
+        c  = c1 ^ CL_MUL128(c, ctx->K12, 0x00) ^ CL_MUL128(c, ctx->K12, 0x11);
+        blocks-=1,  data+=16;
+    }
+	while (--blocks>0){
 		c ^= (poly64x2_t)LOAD128U(data); data+=16;
 		c = CL_MUL128(c, ctx->K12, 0x11) // 192
 		  ^ CL_MUL128(c, ctx->K12, 0x00);// 128
@@ -469,10 +526,11 @@ uint64_t CRC64B_update_N(const CRC_ctx_t *ctx, uint64_t crc, uint8_t* data, int 
 	\param crc Начальное значение суммы. При загрузке должно выполняться выравнивание по старшему биту (MSB).
 
 */
+static
 uint64_t 	CRC32_update_N(const struct _CRC_ctx * ctx,  uint64_t crc, const uint8_t *data, int len){
 	poly64x2_t c = {0, crc};
 	int blocks = (len+15) >> 4;
-    if (0 && blocks>7) {// fold by 4x128 bits
+    if (1 && blocks>7) {// fold by 4x128 bits
         poly64x2_t c1 = {0}, c2 = {0}, c3 = {0};
 __asm volatile("# LLVM-MCA-BEGIN CRC64_update_N_fold4");
         do {
@@ -497,14 +555,12 @@ __asm volatile("# LLVM-MCA-END CRC64_update_N_fold4");
         blocks-=3, data+=48;
     }
 __asm volatile("# LLVM-MCA-BEGIN CRC64_update_N");
-    if (blocks>1) {// fold by 128 bits
-        do {
-			c^= (poly64x2_t)REVERSE((uint8x16_t)LOAD128U((void*)(data)));
-            c = CL_MUL128(c, ctx->K12, 0x00) ^ CL_MUL128(c, ctx->K12, 0x11);
-            blocks-=1, data+=16;
-        } while(blocks>1);
+    while (--blocks>0) {// fold by 128 bits
+		c^= (poly64x2_t)REVERSE((uint8x16_t)LOAD128U((void*)(data)));
+		c = CL_MUL128(c, ctx->K12, 0x00) ^ CL_MUL128(c, ctx->K12, 0x11);
+		blocks-=1, data+=16;
     }
-__asm volatile("# LLVM-MCA-END");
+__asm volatile("# LLVM-MCA-END CRC64_update_N");
 	poly64x2_t v;
 	len &= 15;
 	if (len){
@@ -551,7 +607,7 @@ __asm volatile("# LLVM-MCA-END CRC64B_update_N_fold4");
            ^ CL_MUL128(c2, ctx->K12, 0x00) ^ CL_MUL128(c2, ctx->K12, 0x11);
         blocks-=3, data+=48;
     }
-    if (1 && blocks>3) {// fold by 2x128 bits
+    if (0 && blocks>3) {// fold by 2x128 bits
         poly64x2_t c1 = {0};
 __asm volatile("# LLVM-MCA-BEGIN CRC64B_update_N_fold2");
         do {
@@ -568,13 +624,10 @@ __asm volatile("# LLVM-MCA-END CRC64B_update_N_fold2");
         blocks-=1,  data+=16;
     }
 __asm volatile("# LLVM-MCA-BEGIN CRC64B_update_N");
-    if (blocks>1) {// fold by 128 bits
-        do {
-			poly64x2_t v = (poly64x2_t)LOAD128U((void*)data); data+=16;
-			c^= v; 
-            c = CL_MUL128(c, ctx->K12, 0x00) ^ CL_MUL128(c, ctx->K12, 0x11);
-            blocks-=1;
-        } while(blocks>1);
+    while (--blocks>0) {// fold by 128 bits
+		poly64x2_t v = (poly64x2_t)LOAD128U((void*)data); data+=16;
+		c^= v; 
+		c = CL_MUL128(c, ctx->K12, 0x00) ^ CL_MUL128(c, ctx->K12, 0x11);
     }
 __asm volatile("# LLVM-MCA-END CRC64B_update_N");
 	len &= 15;
@@ -634,16 +687,16 @@ int main (){
 	do{// методика тестирования производительности
 		__builtin_ia32_lfence();
 		ts = __builtin_ia32_rdtsc();
-		crc64 = CRC64WE_update_N(crc64, &data[0], len);
+		crc64 = CRC64_update_N(&CRC64WE_ctx, crc64, &data[0], len);
 		ts = __builtin_ia32_rdtsc()-ts;
 		if (t_min > ts) t_min = ts;
 	} while(--count);
 	printf("CRC64/WE = %016"PRIX64" (xN) %.2f bytes/clk %.1f GB/s @ 3.5 GHz\n", crc64 ^ ~0ULL, (double)(len)/(t_min), (double)(len)/(t_min)*3.5);
 
-	crc64 = CRC64WE_update_N(~0ULL, crc_check, 9);
+	crc64 = CRC64_update_N(&CRC64WE_ctx, ~0ULL, crc_check, 9);
 	printf("CRC64/WE check = %016"PRIX64" (xN) %s\n", crc64 ^ ~0ULL, (crc64 ^ ~0ULL) == CRC64_WE_CHECK?"PASS":"FAIL");
 	
-	crc64 = CRC64WE_update_N(0, crc_check, 9);
+	crc64 = CRC64_update_N(&CRC64WE_ctx, 0, crc_check, 9);
 	printf("CRC-64/ECMA-182 check = %016"PRIX64" (xN) %s\n", crc64, (crc64) == CRC64_ECMA_CHECK?"PASS":"FAIL");
 
 
@@ -686,7 +739,17 @@ int main (){
 		ts = __builtin_ia32_rdtsc() - ts;
 		if (t_min > ts) t_min = ts;
 	} while(--count);
-	printf("CRC32B = %08"PRIX64" (xN) %.2f bytes/clk %.1f GB/s @ 3.5 GHz\n", crc32 ^ ~0ULL, (double)(len)/(t_min), (double)(len)/t_min*3.5);
+	printf("CRC32B      = %08"PRIX32" (xN) %.2f bytes/clk %.1f GB/s @ 3.5 GHz\n", crc32 ^ ~0ULL, (double)(len)/(t_min), (double)(len)/t_min*3.5);
+	count = 8;
+	t_min = ~0; crc32 = ~0;
+	do{
+		__builtin_ia32_lfence();
+		ts = __builtin_ia32_rdtsc();
+		crc32 = update_crc32(crc32, data, len);
+		ts = __builtin_ia32_rdtsc() - ts;
+		if (t_min > ts) t_min = ts;
+	} while(--count);
+	printf("CRC32/CKSUM = %08"PRIX32" (xN) %.2f bytes/clk %.1f GB/s @ 3.5 GHz\n", crc32 ^ ~0ULL, (double)(len)/(t_min), (double)(len)/t_min*3.5);
 
 
 	crc32 = update_crc32(~0u, crc_check, 9);

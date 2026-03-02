@@ -158,15 +158,17 @@ void mwc64s_hash(const void* in, size_t len, uint64_t seed, void* out){
 static inline uint64_t _next(uint64_t x, int r){
     return ((uint32_t)x<<(32-r))*MWC_A0 + (x>>r);
 }
-static const uint64_t j64  = (MWC_A0*MWC_A0);//UINT64_C(0xFFFCB350B8C98AF1);
 static inline uint64_t mwc_mod(uint128_t ac, uint64_t M, uint64_t M_INV) {	
 	ac-= (((ac>>64)*M_INV + ac)>>64)*M;
 	if (ac>>64) ac -= M;
 	return ac;
 }
-    static const uint64_t j96  = UINT64_C(0xB8C85A1586E21F87);
-    static const uint64_t j_64 = UINT64_C(0x00034CAF4736750F);
-    static const uint64_t j128 = UINT64_C(0x86E141001432DA26);
+static const uint64_t j64  = (MWC_A0*MWC_A0);//UINT64_C(0xFFFCB350B8C98AF1);
+static const uint64_t j96  = UINT64_C(0xB8C85A1586E21F87);
+static const uint64_t j_64 = UINT64_C(0x00034CAF4736750F);
+static const uint64_t j128 = UINT64_C(0x86E141001432DA26);
+static const uint64_t j192 = UINT64_C(0xAD97A763E40AF999);
+static const uint64_t j256 = UINT64_C(0x4E5429F8166590FE);
 
 static inline uint128_t mwc_foldm(uint128_t h, uint128_t d, const uint64_t j1, const uint64_t j2, const uint64_t M);
 
@@ -206,17 +208,38 @@ void mwc64_hash_xor(const void* in, size_t len, uint64_t seed, void* out){
 
 template <bool bswap>
 void mwc64_hash(const void* in, size_t len, uint64_t seed, void* out){
+    const unsigned F = 4;//2:128 256, 
     const uint8_t* data = (const uint8_t*)in;
     uint64_t hash = unmix(seed + IV);
 //    uint64_t hash = _mum(seed + IV, UINT64_C(0x82d2e9550235efc5));
 #ifdef __SIZEOF_INT128__
     if (len>=32) {
-        uint128_t h = (uint128_t)hash;
+        uint128_t h[F];
+        h[0] = (uint128_t)hash;
+        if (0 && len>=8*F) {
+            for (unsigned int i=1;i<F;i++) h[i] = 0;
+            while (len>=8*F) {
+                for (unsigned int i=0;i<F;i++)
+                    h[i]+= *(uint64_t*)(data+i*8);
+                for (unsigned int i=0;i<F;i++) 
+                    h[i] = (h[i]>>64) + (uint64_t)h[i] * (uint128_t)j256;
+                data+=8*F; len -= 8*F;
+            }
+            h[0] = (h[0]>>64)*j64 + (uint64_t)h[0] * (uint128_t)j128;
+            h[1] = (h[1]>>64)*j64 + (uint64_t)h[1] * (uint128_t)j128;
+            if (__builtin_add_overflow(h[0],h[2],&h[0]))
+                h[0] -= (uint128_t)MWC_PRIME <<64;
+            if (__builtin_add_overflow(h[1],h[3],&h[1]))
+                h[1] -= (uint128_t)MWC_PRIME <<64;
+            h[0] = (h[0]>>64) + (uint64_t)h[0] * (uint128_t)j64;
+            if (__builtin_add_overflow(h[0],h[1],&h[0]))
+                h[0] -= (uint128_t)MWC_PRIME <<64;
+        }
+
         while (len>=8) {
             uint64_t d0 = (*(uint64_t*) data); data+=8; 
-            h+= d0;
-//            h = (h>>64 | h<<64) - (uint64_t)h * (uint128_t)j_64;// round mix 128
-            h = (h>>64)         + (uint64_t)h * (uint128_t)j64;// round mix 128
+            h[0]+= d0;
+            h[0] = (h[0]>>64) + (uint64_t)h[0] * (uint128_t)j64;// round mix 128
             len -= 8;
         }
         len &= 7;
@@ -226,7 +249,7 @@ void mwc64_hash(const void* in, size_t len, uint64_t seed, void* out){
         //     h+=d0;
         //     h = (h>>(r*8)) + ((uint64_t)h<<(64-r*8)) * (uint128_t)j64;
         // }
-        hash = mwc_mod(h, MWC_PRIME, MWC_INV);
+        hash = mwc_mod(h[0], MWC_PRIME, MWC_INV);
     }
 #endif
     unsigned int blocks = (len>>2);

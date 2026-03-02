@@ -45,7 +45,7 @@ poly64x2_t CL_MUL128(poly64x2_t a, poly64x2_t b, const int c)
 }
 //    return (v2du)__builtin_arm_crypto_vmullp64(vgetq_lane_u64(a, c & 0x1),vgetq_lane_u64(b, (c & 0x10)?1:0));
 }
-static inline uint8x16_t LOAD128U(uint8_t* p) {
+static inline uint8x16_t LOAD128U(const uint8_t* p) {
 	return vld1q_u8(p);
 }
 static inline poly64x2_t SLL128U(poly64x2_t a, const int bits) {
@@ -116,12 +116,9 @@ struct _CRC_ctx {
 	poly64x2_t K34[16];
 	poly64x2_t K12;//!< fold by 1 (128 bits)
 	poly64x2_t KBP;//!< final reduction: Barrett's constant and Polynom
-#if 0
     poly64x2_t KF2;//!< fold by 2
 	poly64x2_t KF3;//!< fold by 3
 	poly64x2_t KF4;//!< fold by 4
-	poly64x2_t KF5;//!< fold by 4
-#endif
 } __attribute__((aligned(16)));
 
 // Обратные числа 0x92D8AF2BAF0E1E85	0xA17870F5D4F51B49
@@ -146,6 +143,9 @@ static const CRC_ctx_t CRC64WE_ctx ={
   },
   {0x05F5C3C7EB52FAB6ULL, 0x4EB938A7D257740EULL}, // 128 192
   {0x578D29D06CC4F872ULL, 0x42F0E1EBA9EA3693ULL},
+  {0x571BEE0A227EF92BuLL,  0x44BEF2A201B5200CuLL},// x^{256}, x^{320}
+  {0x54819D8713758B2CuLL,  0x4A6B90073EB0AF5AuLL},// x^{384}, x^{448}
+  {0x5F6843CA540DF020uLL,  0xDDF4B6981205B83FuLL},// x^{512}, x^{576}
 };
 static const CRC_ctx_t CRC64XZ_ctx = {
   {
@@ -168,6 +168,9 @@ static const CRC_ctx_t CRC64XZ_ctx = {
   },
   {0xE05DD497CA393AE4ULL, 0xDABE95AFC7875F40ULL},// x^{191}, x^{127}
   {0x9C3E466C172963D5ULL, 0x92D8AF2BAF0E1E85ULL},
+  {0x60095B008A9EFA44uLL,  0x3BE653A30FE1AF51uLL},// x^{319}, x^{255}
+  {0xB5EA1AF9C013ACA4uLL,  0x69A35D91C3730254uLL},// x^{447}, x^{383}
+  {0x6AE3EFBB9DD441F3uLL,  0x081F6054A7842DF4uLL},// x^{575}, x^{511}
 };
 static const CRC_ctx_t CRC64MS_ctx = {
 	{
@@ -190,6 +193,59 @@ static const CRC_ctx_t CRC64MS_ctx = {
 	},
 	{0xFD5D7A0700B5BA38ULL, 0xCEF05CCA14BBF4DFULL},// x^{191}, x^{127}
 	{0xD7EB06822197A109ULL, 0x258C84CBA6427349ULL},// Inv, Prime
+  {0x2188097F5687B43CuLL,  0x70BD522114FACEB8uLL},// x^{319}, x^{255}
+  {0x717984ED338C465FuLL,  0x4AA4564B4042092BuLL},// x^{447}, x^{383}
+  {0xD3E2DC3A51DACEE1uLL,  0xA62BC2D50BF03C03uLL},// x^{575}, x^{511}
+};
+static const struct _CRC_ctx CRC64NV_ctx = {
+{
+    {0x21E9761E252621ACULL, 0x0000000000000001ULL},// x^{127}, x^{63}
+    {0x0100000000000000ULL, 0xA15032FE8971C4E1ULL},// x^{7}, x^{-57}
+    {0x0001000000000000ULL, 0xC338171909E5C365ULL},// x^{15}, x^{-49}
+    {0x0000010000000000ULL, 0x90540966DA6F2858ULL},// x^{23}, x^{-41}
+    {0x0000000100000000ULL, 0x09369D3BFC1ED3B3ULL},// x^{31}, x^{-33}
+    {0x0000000001000000ULL, 0x92F7B5A05E2BFC6EULL},// x^{39}, x^{-25}
+    {0x0000000000010000ULL, 0xB7AA3B285B728399ULL},// x^{47}, x^{-17}
+    {0x0000000000000100ULL, 0x3B49DA55548FA3BBULL},// x^{55}, x^{-9}
+    {0x0000000000000001ULL, 0x34D926535897936BULL},// x^{63}, x^{-1}
+    {0x7F6EF0C830358979ULL, 0x0100000000000000ULL},// x^{71}, x^{7}
+    {0x8776A97D73BDDF69ULL, 0x0001000000000000ULL},// x^{79}, x^{15}
+    {0xFF6E4E1F4E4038BEULL, 0x0000010000000000ULL},// x^{87}, x^{23}
+    {0x8211147CBAF96306ULL, 0x0000000100000000ULL},// x^{95}, x^{31}
+    {0x373D15F784905D1EULL, 0x0000000001000000ULL},// x^{103}, x^{39}
+    {0xE9742A79EF04A5D4ULL, 0x0000000000010000ULL},// x^{111}, x^{47}
+    {0xFC5D27F6BF353971ULL, 0x0000000000000100ULL},// x^{119}, x^{55}
+},
+	{0xEADC41FD2BA3D420ULL,0x21E9761E252621ACULL},
+	{0x27ECFA329AEF9F77ULL,0x34D926535897936BULL},
+    {0xB0BC2E589204F500uLL,  0xE1E0BB9D45D7A44CuLL},// x^{319}, x^{255}
+    {0xBDD7AC0EE1A4A0F0uLL,  0xA3FFDC1FE8E82A8BuLL},// x^{447}, x^{383}
+    {0x0C32CDB31E18A84AuLL,  0x62242240ACE5045AuLL},// x^{575}, x^{511}
+};
+static const struct _CRC_ctx CRC64GO_ctx = {
+{
+    {0xF500000000000001ULL, 0x0000000000000001ULL},// x^{127}, x^{63}
+    {0x0100000000000000ULL, 0x11C71C71C71C71C7ULL},// x^{7}, x^{-57}
+    {0x0001000000000000ULL, 0xB001C71C71C71C71ULL},// x^{15}, x^{-49}
+    {0x0000010000000000ULL, 0x400001C71C71C71CULL},// x^{23}, x^{-41}
+    {0x0000000100000000ULL, 0x10000001C71C71C7ULL},// x^{31}, x^{-33}
+    {0x0000000001000000ULL, 0xB000000001C71C71ULL},// x^{39}, x^{-25}
+    {0x0000000000010000ULL, 0x400000000001C71CULL},// x^{47}, x^{-17}
+    {0x0000000000000100ULL, 0x10000000000001C7ULL},// x^{55}, x^{-9}
+    {0x0000000000000001ULL, 0xB000000000000001ULL},// x^{63}, x^{-1}
+    {0x01B0000000000000ULL, 0x0100000000000000ULL},// x^{71}, x^{7}
+    {0x0001B00000000000ULL, 0x0001000000000000ULL},// x^{79}, x^{15}
+    {0x000001B000000000ULL, 0x0000010000000000ULL},// x^{87}, x^{23}
+    {0x00000001B0000000ULL, 0x0000000100000000ULL},// x^{95}, x^{31}
+    {0x0000000001B00000ULL, 0x0000000001000000ULL},// x^{103}, x^{39}
+    {0x000000000001B000ULL, 0x0000000000010000ULL},// x^{111}, x^{47}
+    {0x00000000000001B0ULL, 0x0000000000000100ULL},// x^{119}, x^{55}
+},
+{0xB000000000000001ULL, 0xB000000000000001ULL},
+{0x6B70000000000001uLL, 0xF500000000000001uLL},// x^{191}, x^{127}
+{0x1B1AB00000000001uLL, 0xA011000000000001uLL},// x^{319}, x^{255}
+{0x76DB6C7000000001uLL, 0xE145150000000001uLL},// x^{447}, x^{383}
+{0x01B001B1B0000001uLL, 0xB100010100000001uLL},// x^{575}, x^{511}
 };
 
 #include "Platform.h"
@@ -210,91 +266,145 @@ static FORCE_INLINE uint64_t _mum( uint64_t A, uint64_t B) {
 #define MUM_S       UINT64_C(0x82d2e9550235efc5)
 //#define IV UINT64_C(~0)
 #define IV 	        UINT64_C(0x9e3779b97f4a7c15) // хорошая аддитивная константа golden ratio
-template <bool bswap>
-void CRC64WE_update_N(const void* in, uint64_t len, uint64_t crc, void* out){
-    const uint8_t* data = (const uint8_t*)in;
-    crc = _mum(crc^IV, MUM_C);
+static
+uint64_t CRC64_update_N(const uint8_t* data, uint64_t len, uint64_t crc, const CRC_ctx_t *ctx){
 	poly64x2_t c = {0, crc};
 	int blocks = (len+15) >> 4;
+    if (blocks>7) {// fold by 4x128 bits
+        poly64x2_t c1 = {0}, c2 = {0}, c3 = {0};
+__asm volatile("# LLVM-MCA-BEGIN CRC64_update_N_fold4");
+        do {
+			c ^= (poly64x2_t)REVERSE((uint8x16_t)LOAD128U((data   )));
+			c1^= (poly64x2_t)REVERSE((uint8x16_t)LOAD128U((data+16)));
+			c2^= (poly64x2_t)REVERSE((uint8x16_t)LOAD128U((data+32)));
+			c3^= (poly64x2_t)REVERSE((uint8x16_t)LOAD128U((data+48)));
+            c  = CL_MUL128(c , ctx->KF4, 0x00) ^ CL_MUL128(c , ctx->KF4, 0x11);
+            c1 = CL_MUL128(c1, ctx->KF4, 0x00) ^ CL_MUL128(c1, ctx->KF4, 0x11);
+            c2 = CL_MUL128(c2, ctx->KF4, 0x00) ^ CL_MUL128(c2, ctx->KF4, 0x11);
+            c3 = CL_MUL128(c3, ctx->KF4, 0x00) ^ CL_MUL128(c3, ctx->KF4, 0x11);
+            blocks-=4, data+=64;
+        } while(blocks>7);
+__asm volatile("# LLVM-MCA-END CRC64_update_N_fold4");
+		c ^= (poly64x2_t)REVERSE((uint8x16_t)LOAD128U((data   )));
+		c1^= (poly64x2_t)REVERSE((uint8x16_t)LOAD128U((data+16)));
+		c2^= (poly64x2_t)REVERSE((uint8x16_t)LOAD128U((data+32)));
+        c  = c3
+		   ^ CL_MUL128(c , ctx->KF3, 0x00) ^ CL_MUL128(c , ctx->KF3, 0x11)
+           ^ CL_MUL128(c1, ctx->KF2, 0x00) ^ CL_MUL128(c1, ctx->KF2, 0x11)
+           ^ CL_MUL128(c2, ctx->K12, 0x00) ^ CL_MUL128(c2, ctx->K12, 0x11);
+        blocks-=3, data+=48;
+    }
 	while (--blocks>0){
-        poly64x2_t v = (poly64x2_t) LOAD128U(data); data+=16;
-        if(!bswap) v = (poly64x2_t) REVERSE((uint8x16_t)v);
-		c^= v; 
-		c = CL_MUL128(c, CRC64WE_ctx.K12, 0x11) 
-		  ^ CL_MUL128(c, CRC64WE_ctx.K12, 0x00);
+		c^= (poly64x2_t) REVERSE((uint8x16_t)LOAD128U(data)); data+=16;
+		c = CL_MUL128(c, ctx->K12, 0x11) 
+		  ^ CL_MUL128(c, ctx->K12, 0x00);
 	}
-	poly64x2_t v = {0};
+	poly64x2_t v={0};
 	len &= 15;
 	if (len) {
-		v = LOADZU(data, len);//__builtin_memcpy(&v, data, len);
+		__builtin_memcpy(&v, data, len);
 	} else
 		v = (poly64x2_t)LOAD128U(data);
-    if(!bswap) v = (poly64x2_t) REVERSE((uint8x16_t)v);
-    c^= v;
-	c = CL_MUL128(c, CRC64WE_ctx.K34[len], 0x11) 
-	  ^ CL_MUL128(c, CRC64WE_ctx.K34[len], 0x00);
-	poly64x2_t 
-	t = CL_MUL128(c, CRC64WE_ctx.KBP, 0x01) ^c;
-	c^= CL_MUL128(t, CRC64WE_ctx.KBP, 0x11) ;
-    crc = _mum(c[0],MUM_C);
-    PUT_U64<bswap>(crc, (uint8_t *)out,  0);
-}
+	c^= (poly64x2_t) REVERSE((uint8x16_t)v);
+	c = CL_MUL128(c, ctx->K34[len], 0x11) 
+	  ^ CL_MUL128(c, ctx->K34[len], 0x00);
 
-template <bool bswap>
-void CRC64XZ_update_N(const void* in, uint64_t len, uint64_t crc, void* out){
-    const uint8_t* data = (const uint8_t*)in;
-    crc = crc^IV;
-	poly64x2_t c = {crc, 0};
+    poly64x2_t 
+	t = CL_MUL128(c, ctx->KBP, 0x01) ^c;
+	c^= CL_MUL128(t, ctx->KBP, 0x11) ;
+	return c[0];
+}
+static
+uint64_t CRC64B_update_N(const uint8_t* data, uint64_t len, uint64_t crc, const CRC_ctx_t *ctx){
+	poly64x2_t c = {crc,0};
 	int blocks = (len+15) >> 4;
-	while (--blocks){
-        poly64x2_t v = (poly64x2_t) LOAD128U(data); data+=16;
-        if (bswap) v = (poly64x2_t) REVERSE((uint8x16_t)v);
-		c^= v;
-		c = CL_MUL128(c, CRC64XZ_ctx.K12, 0x11) 
-		  ^ CL_MUL128(c, CRC64XZ_ctx.K12, 0x00);
+    if (blocks>7) {// fold by 4x128 bits
+        poly64x2_t c1 = {0}, c2 = {0}, c3 = {0};
+__asm volatile("# LLVM-MCA-BEGIN CRC64B_update_N_fold4");
+        do {
+			c ^= (poly64x2_t)LOAD128U((data   ));
+			c1^= (poly64x2_t)LOAD128U((data+16));
+			c2^= (poly64x2_t)LOAD128U((data+32));
+			c3^= (poly64x2_t)LOAD128U((data+48));
+            c  = CL_MUL128(c , ctx->KF4, 0x00) ^ CL_MUL128(c , ctx->KF4, 0x11);
+            c1 = CL_MUL128(c1, ctx->KF4, 0x00) ^ CL_MUL128(c1, ctx->KF4, 0x11);
+            c2 = CL_MUL128(c2, ctx->KF4, 0x00) ^ CL_MUL128(c2, ctx->KF4, 0x11);
+            c3 = CL_MUL128(c3, ctx->KF4, 0x00) ^ CL_MUL128(c3, ctx->KF4, 0x11);
+            blocks-=4, data+=64;
+        } while(blocks>7);
+__asm volatile("# LLVM-MCA-END CRC64B_update_N_fold4");
+        c ^= (poly64x2_t)LOAD128U((data   ));
+        c1^= (poly64x2_t)LOAD128U((data+16));
+        c2^= (poly64x2_t)LOAD128U((data+32));
+        c  = c3
+		   ^ CL_MUL128(c , ctx->KF3, 0x00) ^ CL_MUL128(c , ctx->KF3, 0x11)
+		   ^ CL_MUL128(c1, ctx->KF2, 0x00) ^ CL_MUL128(c1, ctx->KF2, 0x11)
+           ^ CL_MUL128(c2, ctx->K12, 0x00) ^ CL_MUL128(c2, ctx->K12, 0x11);
+        blocks-=3, data+=48;
+    }
+    if (0 && blocks>3) {// fold by 2x128 bits
+        poly64x2_t c1 = {0};
+__asm volatile("# LLVM-MCA-BEGIN CRC64B_update_N_fold2");
+        do {
+			c ^= (poly64x2_t)LOAD128U((data   ));
+			c1^= (poly64x2_t)LOAD128U((data+16));
+            //c  = CL_MUL128(c, ctx->K12, 0x00) ^ CL_MUL128(c, ctx->K12, 0x11);
+            c  = CL_MUL128(c, ctx->KF2, 0x00) ^ CL_MUL128(c, ctx->KF2, 0x11);
+            c1 = CL_MUL128(c1, ctx->KF2, 0x00) ^ CL_MUL128(c1, ctx->KF2, 0x11);
+            blocks-=2, data+=32;
+        } while(blocks>3);
+__asm volatile("# LLVM-MCA-END CRC64B_update_N_fold2");
+        c ^= (poly64x2_t)LOAD128U(data);
+        c  = c1 ^ CL_MUL128(c, ctx->K12, 0x00) ^ CL_MUL128(c, ctx->K12, 0x11);
+        blocks-=1,  data+=16;
+    }
+	while (--blocks>0){
+		c ^= (poly64x2_t)LOAD128U(data); data+=16;
+		c = CL_MUL128(c, ctx->K12, 0x11) // 192
+		  ^ CL_MUL128(c, ctx->K12, 0x00);// 128
 	}
-    poly64x2_t v = {0};
 	len &= 15;
 	if (len){
-		v = LOADZU(data, len);//__builtin_memcpy(&v, data, len);
+		poly64x2_t v = {0};
+		__builtin_memcpy(&v, data, len);
+		c^= v;
 	} else 
-		v = (poly64x2_t)LOAD128U(data);
-    if(bswap) v = (poly64x2_t) REVERSE((uint8x16_t)v);
-    c^= v;
-	c = CL_MUL128(c, CRC64XZ_ctx.K34[len], 0x00) 
-	  ^ CL_MUL128(c, CRC64XZ_ctx.K34[len], 0x11);
-	poly64x2_t t = CL_MUL128(c, CRC64XZ_ctx.KBP, 0x00);
-	c ^= SLL128U(t,64) ^ CL_MUL128(t, CRC64XZ_ctx.KBP, 0x10);
-    crc = c[1]^IV;
+		c^= (poly64x2_t)LOAD128U(data); 
+	c = CL_MUL128(c, ctx->K34[len], 0x00) 
+	  ^ CL_MUL128(c, ctx->K34[len], 0x11);
+
+	poly64x2_t t = CL_MUL128(c, ctx->KBP, 0x00);
+	c ^= SLL128U(t,64) ^ CL_MUL128(t, ctx->KBP, 0x10);
+	return c[1];
+}
+
+#define INV UINT64_C(~0)
+template <bool bswap>
+void CRC64WE_update_N(const void* in, uint64_t len, uint64_t crc, void* out){
+//    crc = _mum(crc^IV, MUM_C);
+    crc = CRC64B_update_N((const uint8_t*)in, len, crc^INV, &CRC64WE_ctx);
+//    crc = _mum(crc,MUM_C);
     PUT_U64<bswap>(crc, (uint8_t *)out,  0);
+}
+template <bool bswap>
+void CRC64XZ_update_N(const void* in, uint64_t len, uint64_t crc, void* out){
+    crc = CRC64B_update_N((const uint8_t*)in, len, crc^INV, &CRC64XZ_ctx);
+    PUT_U64<bswap>(crc^INV, (uint8_t *)out,  0);
 }
 template <bool bswap>
 void CRC64MS_update_N(const void* in, uint64_t len, uint64_t crc, void* out){
-    const uint8_t* data = (const uint8_t*)in;
-    crc = crc^IV;
-	poly64x2_t c = {crc, 0};
-	int blocks = (len+15) >> 4;
-	while (--blocks){
-        poly64x2_t v = (poly64x2_t) LOAD128U(data); data+=16;
-        if (bswap) v = (poly64x2_t) REVERSE((uint8x16_t)v);
-		c^= v;
-		c = CL_MUL128(c, CRC64MS_ctx.K12, 0x11) 
-		  ^ CL_MUL128(c, CRC64MS_ctx.K12, 0x00);
-	}
-    poly64x2_t v = {0};
-	len &= 15;
-	if (len){
-		v = LOADZU(data, len);//__builtin_memcpy(&v, data, len);
-	} else 
-		v = (poly64x2_t)LOAD128U(data);
-    if(bswap) v = (poly64x2_t) REVERSE((uint8x16_t)v);
-    c^= v;
-	c = CL_MUL128(c, CRC64MS_ctx.K34[len], 0x00) 
-	  ^ CL_MUL128(c, CRC64MS_ctx.K34[len], 0x11);
-	poly64x2_t t = CL_MUL128(c, CRC64MS_ctx.KBP, 0x00);
-	c ^= SLL128U(t,64) ^ CL_MUL128(t, CRC64MS_ctx.KBP, 0x10);
-    crc = c[1]^IV;
+    crc = CRC64B_update_N((const uint8_t*)in, len, crc^INV, &CRC64MS_ctx);
     PUT_U64<bswap>(crc, (uint8_t *)out,  0);
+}
+template <bool bswap>
+void CRC64NV_update_N(const void* in, uint64_t len, uint64_t crc, void* out){
+    crc = CRC64B_update_N((const uint8_t*)in, len, crc^INV, &CRC64NV_ctx);
+    PUT_U64<bswap>(crc^INV, (uint8_t *)out,  0);
+}
+template <bool bswap>
+void CRC64GO_update_N(const void* in, uint64_t len, uint64_t crc, void* out){
+    crc = CRC64B_update_N((const uint8_t*)in, len, crc^INV, &CRC64GO_ctx);
+    PUT_U64<bswap>(crc^INV, (uint8_t *)out,  0);
 }
 
 REGISTER_FAMILY(CRC64,
@@ -343,4 +453,32 @@ REGISTER_HASH(CRC64_WE,
    $.verification_BE = 0x3258320A,
    $.hashfn_native   = CRC64WE_update_N<false>,
    $.hashfn_bswap    = CRC64WE_update_N<true>
+ );
+REGISTER_HASH(CRC64_NVME,
+   $.desc       = "64-bit CRC-64/NVME",
+   $.impl       = "hwclmul",
+   $.hash_flags =
+        FLAG_HASH_CLMUL_BASED,
+   $.impl_flags =
+        FLAG_IMPL_MULTIPLY_64_128   |
+        FLAG_IMPL_LICENSE_PUBLIC_DOMAIN,
+   $.bits = 64,
+   $.verification_LE = 0xF28DCE16,
+   $.verification_BE = 0x3258320A,
+   $.hashfn_native   = CRC64NV_update_N<false>,
+   $.hashfn_bswap    = CRC64NV_update_N<true>
+ );
+ REGISTER_HASH(CRC64_GO,
+   $.desc       = "64-bit CRC-64/GO-ISO",
+   $.impl       = "hwclmul",
+   $.hash_flags =
+        FLAG_HASH_CLMUL_BASED,
+   $.impl_flags =
+        FLAG_IMPL_MULTIPLY_64_128   |
+        FLAG_IMPL_LICENSE_PUBLIC_DOMAIN,
+   $.bits = 64,
+   $.verification_LE = 0xF28DCE16,
+   $.verification_BE = 0x3258320A,
+   $.hashfn_native   = CRC64GO_update_N<false>,
+   $.hashfn_bswap    = CRC64GO_update_N<true>
  );

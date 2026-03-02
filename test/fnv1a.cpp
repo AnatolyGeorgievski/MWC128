@@ -69,13 +69,50 @@ static void FNV1a( const void * in, size_t len, uint64_t seed, void * out ) {
     h = mix(h, MC);// добавил миксер на выход функции
     PUT_U64<bswap>(h, (uint8_t *)out, 0);
 }
+
+#define M1      UINT64_C(0x99e4d4b2e459691d) // 62 32
+#define M2      UINT64_C(0x53c596c9e952cd49) // 61 32
+#define M4      UINT64_C(0x53c596c9e952cd49) // 61 32
+#define M8      UINT64_C(0x8999bd190961fed1) // 60 32
+#define M16     UINT64_C(0xcf8e683fca0566a1) // 59 32
+#define M24     (M16*M8) // 58 32
+#define M32     UINT64_C(0xaa13d9513f6eb141) // 58 32
+// -log2(p-value) summary:
+//   0     1     2     3     4     5     6     7     8     9    10    11    12
+// ----- ----- ----- ----- ----- ----- ----- ----- ----- ----- ----- ----- -----
+//  4434  1273   599   291   141    78    32    23     5     6     5     2     0
+
 template <bool bswap, mix_t unmix, mix_t mix, uint64_t C2>
 static void FNV1( const void * in, size_t len, uint64_t seed, void * out ) {
     const uint8_t * data = (const uint8_t *)in;
-    uint64_t h = unmix(C1^seed, MC);// добавил миксер на SEED
-    while (len-->0)
-        h = (h+*data++) * C2;
-    h = mix(h, MC);// добавил миксер на выход функции
+    uint128_t h = unmix(C1^seed, MC);// добавил миксер на SEED
+    if (0 && len>=32) {
+        uint128_t h1 = 0;
+        while (len>=32) {// 12 GB/s
+            h ^= *(uint128_t*)data; data+=16;
+            h1^= *(uint128_t*)data; data+=16;
+            h = (h>>64)*(uint128_t)M24 + (uint64_t)h*(uint128_t)M32;
+            h1 = (h1>>64)*(uint128_t)M24 + (uint64_t)h1*(uint128_t)M32;
+            len-=32;
+        }
+        h = (h>>64)*(uint128_t)M4 + (uint64_t)h*(uint128_t)M8;
+        h^= h1;
+    }
+    while (0 && len>=16) {// 12 GB/s
+        h^= *(uint128_t*)data; data+=16;
+        h = (h>>64)*(uint128_t)M8 + (uint64_t)h*(uint128_t)M16;
+        len-=16;
+    }
+    while (0 && len>=8) {
+        h+= *(uint64_t*)data; data+=8;
+        h = (h>>64)*(uint128_t) + (uint64_t)h*(uint128_t)M8;
+        len-=8;
+    }
+    while (len-->0) {
+        h^= *data++;
+        h = (h>>64)*(uint128_t)M1 + (uint64_t)h*(uint128_t)M2;
+    }
+    h = mix(h^h>>64, MC);// добавил миксер на выход функции
     PUT_U64<bswap>(h, (uint8_t *)out, 0);
 }
 #undef C2
@@ -86,7 +123,7 @@ static void FNV1( const void * in, size_t len, uint64_t seed, void * out ) {
 
 /*! 
  Принцип выбора чисел такой что их можно представить в виде Сn = (M_n<<n) +1
- Принцип выбора чисел в оригинальном алгоритме С0 = M_0*256+0x93 - простое число
+ Принцип выбора чисел в оригинальном алгоритме С0 = M_0*256 + K - простое число
  Мы выбираем так чтобы С0%4 == 3
  */
 #define C2      UINT64_C(0x99e4d4b2e459691d) // 62 32
@@ -96,7 +133,6 @@ static void FNV1( const void * in, size_t len, uint64_t seed, void * out ) {
 #define C32     UINT64_C(0xaa13d9513f6eb141) // 58 32
 #define C64     UINT64_C(0x7fea083ccc96f281) // 57 32
 #define C128    UINT64_C(0x1ad2146bef739701) // 56 32
-
 template <bool bswap, mix_t mix>
 static void FNV1a_fast( const void * in, size_t len, uint64_t seed, void * out ) {
     const uint8_t * data = (const uint8_t *)in;

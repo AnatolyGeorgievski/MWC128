@@ -1,4 +1,7 @@
 #include <stdint.h>
+#include <stdbool.h>
+#include <stdio.h>
+
 /* Скопировано из WYhash, доработан критерий
     \see https://github.com/wangyi-fudan/wyhash/blob/master/wyhash.h
 Сборка 
@@ -25,6 +28,28 @@ static inline uint64_t wy2u0k(uint64_t r, uint64_t k){ _wymum(&r,&k); return k; 
 //convert any 64 bit pseudo random numbers to APPROXIMATE Gaussian distribution.
 static inline double wy2gau(uint64_t r){ const double _wynorm=1.0/(1ull<<20); return ((r&0x1fffff)+((r>>21)&0x1fffff)+((r>>42)&0x1fffff))*_wynorm-3.0;}
 
+
+static inline uint64_t INVL(uint64_t v) {
+    return ((unsigned __int128)(-v)<<64)/v;
+}
+static inline uint64_t INVL52(uint64_t v) {
+    return ((unsigned __int128)((1uLL<<52)-v)<<52)/v;
+}
+/*! \brief модульная операция с отложенным редуцированием */
+static inline uint64_t _mulm(uint64_t A, uint64_t B, uint64_t M, uint64_t M_INV) {	
+    uint128_t ac = A*(uint128_t)B;
+	ac-= (((ac>>64)*M_INV + ac)>>64)*M;
+	if (ac>>64) {
+        ac -= M;
+        printf("$");
+    }
+	return ac;
+}
+#define PRIME UINT64_C(0xffffffffff000001)
+static inline uint64_t _mix(uint64_t A, uint64_t B){ 
+    const uint64_t P_INV = INVL(PRIME);
+    return _mulm(A,B, PRIME, P_INV);
+}
 /*! Умножение по модулю */
 static inline uint64_t mulm(const uint64_t b, uint64_t a, const uint64_t N) {
     return ((unsigned __int128)b*a)%N;
@@ -139,8 +164,6 @@ static void make_secret(uint64_t seed, uint64_t *secret, int N){
     }while(!ok);
   }
 }
-#include <stdio.h>
-#include <stdbool.h>
 extern int Proth_prime (uint64_t p);
 uint64_t pow_2n(uint64_t x, int n){
     do {
@@ -211,7 +234,7 @@ uint64_t C2 = 0xc5470f4b59aab41b;// 32 | 10
     int pp = Proth_prime(pow_2n(C2, 30));
     printf("C%d\tUINT64_C(0x%016llx)\n", 30, C30);
     for (int i=0; i< 62; i++){
-        C2=C2*C2;//_wymix(C2,C2);
+        C2=_mix(C2,C2);//_wymix(C2,C2);
         int ord = _max_order(C2);
         uint64_t Ci = inverse_u64(C2);
         printf("#define C%d\tUINT64_C(0x%016llx) // inv =0x%016llx ord=%2d %2d %s %s\n", i+1, 
@@ -227,10 +250,11 @@ prime 0xfffffffc00000001 34
 prime 0xffffff0000000001 40
     
     */
-for (int i=1; i<64; i++){
-    uint64_t p = -(1uLL<<i) +1;
+for (int i=1; i<52; i++){
+    uint64_t p = (1uLL<<52)-(1uLL<<i) +1;
     if (is_prime(p)){
-        printf("prime 0x%016llx %d\n", p, i);
+        uint64_t inv = INVL52(p);
+        printf("prime 0x%016llx invl = 0x%016llx %d\n", p, inv, i);
     }
 }
     return 0;
