@@ -23,6 +23,11 @@ static FORCE_INLINE uint64_t _mum( uint64_t A, uint64_t B) {
     MathMult::mult64_128(rlo, rhi, B, A);
     return rlo ^ rhi;
 }
+static FORCE_INLINE uint64_t _mum_no_carry( uint64_t A, uint64_t B) {
+    uint64_t rlo, rhi;
+    MathMult::mult64_128_nocarry(rlo, rhi, B, A);
+    return rlo ^ rhi;
+}
 static FORCE_INLINE uint64_t _mxm( uint64_t A, uint64_t B) {
     uint64_t rlo, rhi;
     MathMult::mult64_128(rlo, rhi, B, A);
@@ -78,6 +83,12 @@ static void FNV1( const void * in, size_t len, uint64_t seed, void * out ) {
 //   0     1     2     3     4     5     6     7     8     9    10    11    12
 // ----- ----- ----- ----- ----- ----- ----- ----- ----- ----- ----- ----- -----
 //  4362  1297   664   284   141    71    34    12    10     4     2     2     0
+
+/*! 
+ Принцип выбора чисел такой что их можно представить в виде Сn = (M_n<<n) +1
+ Принцип выбора чисел в оригинальном алгоритме С0 = M_0*256+0x93 - простое число
+ Мы выбираем так чтобы С0%4 == 3
+ */
 #define C2      UINT64_C(0x99e4d4b2e459691d) // 62 32
 #define C4      UINT64_C(0x53c596c9e952cd49) // 61 32
 #define C8      UINT64_C(0x8999bd190961fed1) // 60 32
@@ -86,7 +97,7 @@ static void FNV1( const void * in, size_t len, uint64_t seed, void * out ) {
 #define C64     UINT64_C(0x7fea083ccc96f281) // 57 32
 #define C128    UINT64_C(0x1ad2146bef739701) // 56 32
 
-template <bool bswap>
+template <bool bswap, mix_t mix>
 static void FNV1a_fast( const void * in, size_t len, uint64_t seed, void * out ) {
     const uint8_t * data = (const uint8_t *)in;
     uint64_t h = _mum(C1^seed, C2);// добавил миксер на SEED
@@ -99,23 +110,23 @@ static void FNV1a_fast( const void * in, size_t len, uint64_t seed, void * out )
             uint64_t d1 = GET_U64<bswap>(data, 8);
             uint64_t d2 = GET_U64<bswap>(data,16);
             uint64_t d3 = GET_U64<bswap>(data,24);
-            h  = _mum(h ^d0,C64);
-            h1 = _mum(h1^d1,C64);
-            h2 = _mum(h2^d2,C64);
-            h3 = _mum(h3^d3,C64);
+            h  = mix(h ^d0,C64);
+            h1 = mix(h1^d1,C64);
+            h2 = mix(h2^d2,C64);
+            h3 = mix(h3^d3,C64);
             len-=32; data+=32;
         }
-        h  =h2^_mum(h, C32); // merge
-        h1 =h3^_mum(h1,C32);
-        h  =h1^_mum(h, C16);
+        h  =h2^mix(h, C32); // merge
+        h1 =h3^mix(h1,C32);
+        h  =h1^mix(h, C16);
     }
     while (len>=8) {
         uint64_t d0 = GET_U64<bswap>(data, 0);
-        h  = _mum(h ^d0,C16);
+        h  = mix(h ^d0,C16);
         len-=8; data+=8;
     }
     while (len-->0)
-        h = _mum(h^*data++,C2);
+        h = mix(h^*data++,C2);
     h = _mum(h^h>>32, C2);// добавил миксер на выход функции
     PUT_U64<bswap>(h, (uint8_t *)out, 0);
 }
@@ -237,8 +248,21 @@ REGISTER_HASH(FNV1a_64__fast,
    $.bits = 64,
    $.verification_LE = 0x9476D68F,
    $.verification_BE = 0x61F152DA,
-   $.hashfn_native   = FNV1a_fast<false>,
-   $.hashfn_bswap    = FNV1a_fast<true>
+   $.hashfn_native   = FNV1a_fast<false, _mum>,
+   $.hashfn_bswap    = FNV1a_fast<true, _mum>
+ );
+REGISTER_HASH(FNV1a_64__noc,
+   $.desc       = "64-bit FNV-1a Fast with Seed and mum-mixer w/o carry",
+   $.hash_flags =
+         0,
+   $.impl_flags =
+         FLAG_IMPL_MULTIPLY_64_64 |
+         FLAG_IMPL_LICENSE_PUBLIC_DOMAIN,
+   $.bits = 64,
+   $.verification_LE = 0x9476D68F,
+   $.verification_BE = 0x61F152DA,
+   $.hashfn_native   = FNV1a_fast<false, _mum_no_carry>,
+   $.hashfn_bswap    = FNV1a_fast<true, _mum_no_carry>
  );
 REGISTER_HASH(FNV1a_64__mum,
    $.desc       = "64-bit bytewise FNV-1a with Seed and wymum-mixer",

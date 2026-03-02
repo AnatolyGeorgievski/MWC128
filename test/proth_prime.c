@@ -42,12 +42,13 @@ static uint64_t powm(const uint64_t b, uint64_t a, const uint64_t N)
 /*! \brief Тест простоты для чисел Прота вида p = a*2^s + 1 
  максимальный период повтора равен (p-1)/w , выбираем числа с w=1
  */
-int Proth_test (uint64_t p){
+int Proth_prime (uint64_t p){
+	if((p&1)!=1 || p<3) return 0;
 	uint64_t g = 3;
 	while(jacobi(g, p)!=-1) g+=2;
 	return powm(g, p-1, p)==1 && /* powm(g, (p-1)/2, p)!=1 */ powm(g, (p-1)/2, p)==(p-1);
 }
-
+#ifdef TEST_PROTH
 #define MAX_SIZE 0x1FFFF
 #define MAX_VAL  0x3FFFF
 uint64_t prime[MAX_SIZE];
@@ -79,7 +80,7 @@ int main(int argc, char* argv[]){
 		if (is_prime(a0,i))
 		if (is_prime(a,i))
 		if (__builtin_popcount(a>>32)==16 && __builtin_popcount((a>>40)&0xFFFF)==8 && __builtin_popcount((a>>32)&0xFF)==4)
-		if (Proth_test(a)) {
+		if (Proth_prime(a)) {
 			int w = 1;
 			while (w<(1uLL<<32) && powm(a>>32, (a-1)/w, a)==1) w<<=1;
 			if (w <= 128)// дополнительный критерий отбора - создает мультипликативную группу с периодом повтора (P-1)/w
@@ -88,3 +89,4 @@ int main(int argc, char* argv[]){
 	}
 	return 0;
 }
+#endif
