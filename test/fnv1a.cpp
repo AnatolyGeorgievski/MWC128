@@ -4,6 +4,11 @@
  *
  * Переписал FNV-1a с другими коэффициентами, чтобы функция проходила тесты Avalanche,BIC,Sparse
  * Версия подготовлена для теста SMHasher3.
+
+ [RFC9923] The FNV Non-Cryptographic Hash Algorithm 
+ (https://www.rfc-editor.org/rfc/rfc9923) 
+
+
  */
 #include "Platform.h"
 #include "Hashlib.h"
@@ -38,6 +43,11 @@ static FORCE_INLINE uint64_t _msm( uint64_t A, uint64_t B) {
     MathMult::mult64_128(rlo, rhi, B, A);
     return rlo ^ rhi ^ (rhi>>32);
 }
+static FORCE_INLINE uint64_t _msq( uint64_t A, uint64_t B) {
+    uint64_t rlo, rhi;
+    MathMult::mult64_128(rlo, rhi, B, A);
+    return rlo ^ rhi ^ (rlo>>32 ^ rhi<<32);
+}
 static FORCE_INLINE uint64_t _mxr( uint64_t A, uint64_t B) {
     uint64_t rlo, rhi;
     MathMult::mult64_128(rlo, rhi, B, A);
@@ -59,7 +69,9 @@ static FORCE_INLINE uint64_t mumix( uint64_t A, uint64_t B) {
     return _mum(A^A>>32, B);
 }
 
+typedef uint64_t (*prng_t)(uint64_t);
 typedef uint64_t (*mix_t)(uint64_t, uint64_t);
+typedef uint128_t (*mumix_t)(uint128_t, int, uint64_t);
 template <bool bswap, mix_t unmix, mix_t mix, uint64_t C2>
 static void FNV1a( const void * in, size_t len, uint64_t seed, void * out ) {
     const uint8_t * data = (const uint8_t *)in;
@@ -168,6 +180,7 @@ static void FNV1a_fast( const void * in, size_t len, uint64_t seed, void * out )
 }
 #undef  C2
 #define C2 	        UINT64_C(0xa3b195354a39b70d)
+// Функция для выбора и сравнения Round mixer
 template <bool bswap, mix_t mix>
 static void FNV1a_mum( const void * in, size_t len, uint64_t seed, void * out ) {
     const uint8_t * data = (const uint8_t *)in;
@@ -177,19 +190,66 @@ static void FNV1a_mum( const void * in, size_t len, uint64_t seed, void * out ) 
     h = _mum(h, C2);// добавил миксер на выход функции
     PUT_U64<bswap>(h, (uint8_t *)out, 0);
 }
-template <bool bswap, mix_t mix>
-static void FNV1a_mwc( const void * in, size_t len, uint64_t seed, void * out ) {
+#define MWC_A0  UINT64_C(0xfffe59a7)
+static inline uint64_t mwc_next(uint64_t x){
+    return (x>>32) + (uint32_t)x * MWC_A0;
+}
+// ROR -log2(p-value) summary:
+//           0     1     2     3     4     5     6     7     8     9    10    11    12
+//         ----- ----- ----- ----- ----- ----- ----- ----- ----- ----- ----- ----- -----
+//          4393  1340   607   275   140    55    32    27    11     4     3     0     2
+
+// линейные и нелинейные скрамблеры
+static inline uint64_t ror_next(uint64_t x){
+    return ROTR64(x,8);
+}
+// линейные и нелинейные скрамблеры параметризуемые 8 16 32 
+static inline uint64_t rrx_next(uint64_t x){
+    return ROTL64(x,8)^(x>>8);
+}
+static inline uint64_t rnx(uint64_t x){
+    return x^(ROTL64(~x,8)&ROTR64(x,8));
+}
+static inline uint64_t rrx(uint64_t x){
+    return x^ROTL64(x,8)^ROTL64(x,16);
+}
+// Update the XBG subgenerator (xoroshiro128v1_0)
+static inline void xoroshiro128p_next(uint64_t* s) {
+	uint64_t s0 = s[0];
+	uint64_t s1 = s[1];
+	s1 ^= s0;
+	s0 = ROTL64(s0, 24);
+	s[0] = s0 ^ s1 ^ (s1 << 16);
+	s[1] = ROTL64(s1, 37);
+}
+// A(11, 31, 18) - хороший миксер A0,A2 const uint64_t M_PCG = 0x5851F42D4C957F2D;
+// трансформации A_{2n}-A1_{2n+1} сопряженные по операции bit-reverse
+// G₂(x) = bit_reverse(G₁(bit_reverse(x)))
+static inline uint64_t xorshiftA2(uint64_t x) {
+    const int a=11, b=31, c=18;
+	x ^= x << c; x ^= x >> b; x ^= x << a;
+	return x;
+}
+// xorshift A2(11,31,18) PRNG-hash -log2(p-value) summary:
+//   0     1     2     3     4     5     6     7     8     9    10    11    12
+// ----- ----- ----- ----- ----- ----- ----- ----- ----- ----- ----- ----- -----
+//  4385  1368   560   269   154    70    41    15    16     4     6     1     0
+
+// MWC64 PRNG-hash -log2(p-value) summary:
+//   0     1     2     3     4     5     6     7     8     9    10    11    12
+// ----- ----- ----- ----- ----- ----- ----- ----- ----- ----- ----- ----- -----
+//  4409  1277   621   272   167    84    27    13    10     5     3     1     0
+template <bool bswap, prng_t prng_next>
+static void FNV1a_prng( const void * in, size_t len, uint64_t seed, void * out ) {
     const uint8_t * data = (const uint8_t *)in;
-    uint64_t h = _mum(C1^seed, C2);// добавил миксер на SEED
-    while (len-->0) {
-        h =(h^*data++)* 0x100000001b3u;
-        h = ROTR64(h, 17) ^ h;
-    }
-    h = _mum(h, C2);// добавил миксер на выход функции
+    uint64_t h = _mum(C1^seed, C2);
+    while (len-->0)
+        h = _mum(prng_next(h)^*data++, C2);
+    h = _mum(h, C2);
     PUT_U64<bswap>(h, (uint8_t *)out, 0);
 }
 
-template <bool bswap>
+template <bool bswap, mumix_t mix>
 static void FNV1a_128( const void * in, size_t len, const seed_t seed, void * out ) {
     const uint8_t * data = (const uint8_t *)in;
     const uint64_t  C1lo = UINT64_C(0x62b821756295c58d);
@@ -200,14 +260,13 @@ static void FNV1a_128( const void * in, size_t len, const seed_t seed, void * ou
     register uint128_t h = (((uint128_t) C1hi << 64) | C1lo);
     h = _mum(h^seed, C2mx);
     while (len>=8) {
-        h+= *(uint64_t*)data; data+=8;
-        h = (h>>64) + (uint64_t)h * (uint128_t)MWC_A1;
         len -= 8;
+        h^= *(uint64_t*)data; data+=8;
+        h = mix(h, 64, MWC_A1);
     }
     while (len-->0) {
-        h+= *data++;
-        int r = 1;
-        h = (h>>(r*8)) + ((uint64_t)h<<(64-r*8)) * (uint128_t)MWC_A1;
+        h^= *data++;
+        h = mix(h, 8, MWC_A1);
     }
     PUT_U64<bswap>(_mum(h^h>>64, C2mx), (uint8_t *)out, 0);
     h = (h>>64) + (uint64_t)h * (uint128_t)MWC_A1;
@@ -287,6 +346,19 @@ REGISTER_HASH(FNV1a_64__fast,
    $.hashfn_native   = FNV1a_fast<false, _mum>,
    $.hashfn_bswap    = FNV1a_fast<true, _mum>
  );
+REGISTER_HASH(FNV1a_64__f1,
+   $.desc       = "64-bit FNV-1a Fast w/o round mixer",
+   $.hash_flags =
+         0,
+   $.impl_flags =
+         FLAG_IMPL_MULTIPLY_64_64 |
+         FLAG_IMPL_LICENSE_PUBLIC_DOMAIN,
+   $.bits = 64,
+   $.verification_LE = 0x9476D68F,
+   $.verification_BE = 0x61F152DA,
+   $.hashfn_native   = FNV1a_fast<false, nomix>,
+   $.hashfn_bswap    = FNV1a_fast<true, nomix>
+ );
 REGISTER_HASH(FNV1a_64__noc,
    $.desc       = "64-bit FNV-1a Fast with Seed and mum-mixer w/o carry",
    $.hash_flags =
@@ -299,6 +371,90 @@ REGISTER_HASH(FNV1a_64__noc,
    $.verification_BE = 0x61F152DA,
    $.hashfn_native   = FNV1a_fast<false, _mum_no_carry>,
    $.hashfn_bswap    = FNV1a_fast<true, _mum_no_carry>
+ );
+REGISTER_HASH(FNV1a_64__mwc,
+   $.desc       = "64-bit bytewise FNV-1 with MWC RNG-mixer",
+   $.hash_flags =
+         0,
+   $.impl_flags =
+         FLAG_IMPL_MULTIPLY_64_64 |
+         FLAG_IMPL_LICENSE_PUBLIC_DOMAIN    |
+         FLAG_IMPL_VERY_SLOW,
+   $.bits = 64,
+   $.verification_LE = 0x9476D68F,
+   $.verification_BE = 0x61F152DA,
+   $.hashfn_native   = FNV1a_prng<false, mwc_next>,
+   $.hashfn_bswap    = FNV1a_prng<true, mwc_next>
+ );
+REGISTER_HASH(FNV1a_64__rng,
+   $.desc       = "64-bit bytewise FNV-1 with XorShift RNG-mixer",
+   $.hash_flags =
+         0,
+   $.impl_flags =
+         FLAG_IMPL_MULTIPLY_64_64 |
+         FLAG_IMPL_LICENSE_PUBLIC_DOMAIN    |
+         FLAG_IMPL_VERY_SLOW,
+   $.bits = 64,
+   $.verification_LE = 0x9476D68F,
+   $.verification_BE = 0x61F152DA,
+   $.hashfn_native   = FNV1a_prng<false, xorshiftA2>,
+   $.hashfn_bswap    = FNV1a_prng<true, xorshiftA2>
+ );
+REGISTER_HASH(FNV1a_64__ror,
+   $.desc       = "64-bit bytewise FNV-1 with ROTR RNG-mixer",
+   $.hash_flags =
+         0,
+   $.impl_flags =
+         FLAG_IMPL_MULTIPLY_64_64 |
+         FLAG_IMPL_LICENSE_PUBLIC_DOMAIN    |
+         FLAG_IMPL_VERY_SLOW,
+   $.bits = 64,
+   $.verification_LE = 0x9476D68F,
+   $.verification_BE = 0x61F152DA,
+   $.hashfn_native   = FNV1a_prng<false, ror_next>,
+   $.hashfn_bswap    = FNV1a_prng<true, ror_next>
+ );
+REGISTER_HASH(FNV1a_64__rrx,
+   $.desc       = "64-bit bytewise FNV-1 with ROTR RNG-mixer",
+   $.hash_flags =
+         0,
+   $.impl_flags =
+         FLAG_IMPL_MULTIPLY_64_64 |
+         FLAG_IMPL_LICENSE_PUBLIC_DOMAIN    |
+         FLAG_IMPL_VERY_SLOW,
+   $.bits = 64,
+   $.verification_LE = 0x9476D68F,
+   $.verification_BE = 0x61F152DA,
+   $.hashfn_native   = FNV1a_prng<false, rrx>,
+   $.hashfn_bswap    = FNV1a_prng<true, rrx>
+ );
+REGISTER_HASH(FNV1a_64__rnx,
+   $.desc       = "64-bit bytewise FNV-1 with ROTR RNG-mixer",
+   $.hash_flags =
+         0,
+   $.impl_flags =
+         FLAG_IMPL_MULTIPLY_64_64 |
+         FLAG_IMPL_LICENSE_PUBLIC_DOMAIN    |
+         FLAG_IMPL_VERY_SLOW,
+   $.bits = 64,
+   $.verification_LE = 0x9476D68F,
+   $.verification_BE = 0x61F152DA,
+   $.hashfn_native   = FNV1a_prng<false, rnx>,
+   $.hashfn_bswap    = FNV1a_prng<true, rnx>
+ );
+REGISTER_HASH(FNV1a_64__rxr,
+   $.desc       = "64-bit bytewise FNV-1 with RRX RNG-mixer",
+   $.hash_flags =
+         0,
+   $.impl_flags =
+         FLAG_IMPL_MULTIPLY_64_64 |
+         FLAG_IMPL_LICENSE_PUBLIC_DOMAIN    |
+         FLAG_IMPL_VERY_SLOW,
+   $.bits = 64,
+   $.verification_LE = 0x9476D68F,
+   $.verification_BE = 0x61F152DA,
+   $.hashfn_native   = FNV1a_prng<false, rrx_next>,
+   $.hashfn_bswap    = FNV1a_prng<true, rrx_next>
  );
 REGISTER_HASH(FNV1a_64__mum,
    $.desc       = "64-bit bytewise FNV-1a with Seed and wymum-mixer",
@@ -356,6 +512,20 @@ REGISTER_HASH(FNV1a_64__mxr,
    $.hashfn_native   = FNV1a_mum<false, _mxr>,
    $.hashfn_bswap    = FNV1a_mum<true, _mxr>
  );
+REGISTER_HASH(FNV1a_64__msq,
+   $.desc       = "64-bit bytewise FNV-1a with middle square-mixer",
+   $.hash_flags =
+         0,
+   $.impl_flags =
+         FLAG_IMPL_MULTIPLY_64_64 |
+         FLAG_IMPL_LICENSE_PUBLIC_DOMAIN    |
+         FLAG_IMPL_VERY_SLOW,
+   $.bits = 64,
+   $.verification_LE = 0x8E17A335,
+   $.verification_BE = 0xF8C4ED4B,
+   $.hashfn_native   = FNV1a_mum<false, _msq>,
+   $.hashfn_bswap    = FNV1a_mum<true, _msq>
+ );
 REGISTER_HASH(FNV1a_64__arx,
    $.desc       = "64-bit bytewise FNV-1a with Seed and ARX-mixer",
    $.hash_flags =
@@ -397,19 +567,4 @@ REGISTER_HASH(FNV1a_64__mumx,
    $.verification_BE = 0xF8C4ED4B,
    $.hashfn_native   = FNV1a_mum<false, mumix>,
    $.hashfn_bswap    = FNV1a_mum<true, mumix>
- );
-REGISTER_HASH(FNV1a_128,
-   $.desc       = "128-bit bytewise FNV-1a (Fowler-Noll-Vo)",
-   $.hash_flags =
-         FLAG_HASH_ENDIAN_INDEPENDENT |
-         FLAG_HASH_NO_SEED,
-   $.impl_flags =
-         FLAG_IMPL_MULTIPLY_64_128    |
-         FLAG_IMPL_LICENSE_BSD        
-         ,
-   $.bits = 128,
-   $.verification_LE = 0x0269D36F,
-   $.verification_BE = 0x0269D36F,
-   $.hashfn_native   = FNV1a_128<false>,
-   $.hashfn_bswap    = FNV1a_128<true>
  );

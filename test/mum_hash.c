@@ -55,7 +55,7 @@ void mum_hash(const uint8_t* data, size_t len, uint64_t seed, uint8_t* out) {
         unsigned int i1 = i+1==MUM_SZ? 0:i+1;
         uint64_t d0 = *(uint64_t*)data; data+=8;
         uint64_t d1 = *(uint64_t*)data; data+=8;
-        state[i]^=mum(d0 ^ primes[i1], d1 ^ primes[i]);
+        state[i]^=mumix(d0 + primes[i1], d1 + primes[i]);
         len-=16; i=i1;
     }
     *(uint64_t*)out = mumix(state[0]^state[1], MUM_C);

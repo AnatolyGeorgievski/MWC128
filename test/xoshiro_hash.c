@@ -145,7 +145,6 @@ static inline uint64_t fastmix2(uint64_t x){
 	return x;
 }
 
-static inline uint64_t mwc128_next(uint64_t *s);
 #define IV  0x9e3779b97f4a7c15u
 #define PAD 0x0102030405060708u
 #define STATE_SZ 2
@@ -158,33 +157,4 @@ uint64_t xoroshiro_hash(const uint8_t *data, uint64_t len, uint64_t seed) {
 		xoroshiro128p_next(s);
 	}
  	return mix_lea(s[0]+s[1])-IV;
-}
-uint32_t A2 = 0xffe118ab;
-static inline void mwc64r2_next(uint64_t*s, int r) {
-    uint32_t *state = (uint32_t *)s;
-    uint64_t t = (uint64_t)A2*(state[0]<<(32-(r*8))) + (state[3]>>(r*8));
-    state[0] = state[1];
-    state[1] = state[2];
-    state[2] = t;
-    state[3] = t>>32;
-}
-uint64_t mwc64r2_hash(const uint8_t* data, uint64_t len, uint64_t seed){
-	uint64_t s[2];
-		s[0] = unmix_lea(seed+=IV);
-		s[1] = unmix_lea(seed+=IV);
-    int i;
-    for (i=0; i<len>>2; i++){
-        s[0]^= *(uint32_t*) data; data+=4;
-        mwc64r2_next(s, 4);
-    }
-	if (len&3) {
-		int r = len&3;
-		uint32_t d = 0;
-		__builtin_memcpy(&d, data, r); data+=r;
-		s[0]^= d;
-        mwc64r2_next(s, r);
-	}
-    mwc64r2_next(s,4);
-    mwc64r2_next(s,4);
-    return mix_lea(s[0]^s[1]);
 }

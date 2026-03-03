@@ -133,6 +133,7 @@ static inline uint64_t rrmxmx(uint64_t v) {
 #define MWC_A0  0xfffe59a7uLL//eb81bULL
 #define MWC_INV 0x0001A65BB8CE0887u
 #define MWC_PRIME ((MWC_A0<<32) -1)
+#define MWC_MINUS_PRIME ((uint64_t)(-(MWC_PRIME)))
 static inline uint64_t next(uint64_t x, int r){
     return ((uint32_t)x<<(32-r))*MWC_A0 + (x>>r);
 }
@@ -140,7 +141,11 @@ typedef unsigned __int128 uint128_t;
 static inline uint64_t  mwc_mod  (uint128_t ac, uint64_t M, uint64_t M_INV);
 static inline uint128_t mwc_foldm(uint128_t h, uint128_t d, const uint64_t j1, const uint64_t j2, const uint64_t M);
 static inline uint128_t mwc_merge(uint128_t h, uint128_t d, const uint64_t j1, const uint64_t j2, const uint64_t M);
-uint64_t mwc64_hash(uint64_t hash, uint8_t* data, size_t data_len){
+
+
+#define SEGMENT_SIZE 2048
+static uint128_t mwc64_hash_segment(uint128_t hash, const uint8_t *data);
+uint64_t mwc64_hash(uint64_t hash, const uint8_t* data, size_t data_len){
     static const uint64_t j64  = UINT64_C(0xFFFCB350B8C98AF1);
     static const uint64_t j_64 = UINT64_C(0x00034CAF4736750F);
     static const uint64_t j96  = UINT64_C(0xB8C85A1586E21F87);
@@ -148,21 +153,16 @@ uint64_t mwc64_hash(uint64_t hash, uint8_t* data, size_t data_len){
     static const uint64_t j192 = UINT64_C(0xCE7CDBEB087AEFCE);
     static const uint64_t j256 = UINT64_C(0x4E5429F8166590FE);
     hash = unmix(hash+IV);
-if (0) {
-    if (data_len>=32) {
-        uint128_t h = (uint128_t)hash, h1 = 0;
-        while (data_len>=16) {
-            uint128_t d0 = (*(uint128_t*) data); data+=16; 
-            h = mwc_foldm(h, d0, j128, j64, MWC_PRIME);
-            data_len -= 16;
-        }
-//        h = mwc_merge(h, h1, j128, j64, MWC_PRIME);
-        hash = h%MWC_PRIME;
-    }
-}
     int i=0;
-    if (0 && data_len>=16) {
+    if (1 && data_len>=16) {
         uint128_t h = (uint128_t)hash;
+
+        if (1 && data_len>=SEGMENT_SIZE){
+            data_len-=SEGMENT_SIZE;
+            h = mwc64_hash_segment(h, data);
+            data+=SEGMENT_SIZE;
+        }
+
         while (data_len>=8) {
             uint64_t d0 = (*(uint64_t*) data); data+=8; 
             h+= d0;
@@ -245,20 +245,22 @@ static inline uint64_t mwc_maddm(uint64_t a, uint64_t b, uint64_t c, uint64_t M)
 static inline uint128_t mwc_foldm(uint128_t h, uint128_t d, const uint64_t j1, const uint64_t j2, const uint64_t M){
     if (__builtin_add_overflow(h, d, &h)) {
         h -= (uint128_t)M<<64;
+        printf("$");
     }
     uint128_t t;
-    t = (uint64_t)h * (uint128_t)j1;// k
-    h = (h>>64) * (uint128_t)j2; // k-64
+    t = (uint64_t)h * (uint128_t)j2;// k
+    h = (h>>64) * (uint128_t)j1; // k-64
     if (__builtin_add_overflow(h, t, &h)){
         h -= (uint128_t)M<<64;
+        printf("%%");
     }
     return h;
 }
 /*! \brief выравнивание и слияние элементов вектора */ 
 static inline uint128_t mwc_merge(uint128_t h, uint128_t d, const uint64_t j1, const uint64_t j2, const uint64_t M){
     uint128_t t;
-    t = (uint64_t)h * (uint128_t)j1;// k
-    h = (h>>64) * (uint128_t)j2; // k-64
+    t = (uint64_t)h * (uint128_t)j2;// k
+    h = (h>>64) * (uint128_t)j1; // k-64
     if (__builtin_add_overflow(h, t, &h))
         h -= (uint128_t)M<<64;
     if (__builtin_add_overflow(h, d, &h))
@@ -278,6 +280,62 @@ uint64_t mwc64_merge(uint64_t h1, uint64_t h2, uint64_t jump){
         h1 = mwc_addm(h1, h2, MWC_PRIME);
     return mix(h1)-IV;
 }
+
+#define J_64 UINT64_C(0x0001A65900000001)
+#define J_128 UINT64_C(0xE1B1274AB8CE0887)
+
+#define J0   UINT64_C(1)
+#define J64  UINT64_C(0xFFFCB350B8C98AF1)
+#define J128 UINT64_C(0x86E141001432DA26)
+#define J192 UINT64_C(0xAD97A763E40AF999)
+#define J256 UINT64_C(0x4E5429F8166590FE)
+static uint128_t mwc64_hash_segment(uint128_t hash, const uint8_t *data){
+    int data_len = SEGMENT_SIZE;
+    uint128_t h[2] = {hash};
+    if (0) {
+        while (data_len>=16) {
+            h[0]+= (*(uint64_t*) data); data+=8; 
+            h[0] = (h[0]>>64)*(uint128_t)J64 + (uint64_t)h[0] * (uint128_t)J128;// round mix 64
+            h[1]+= (*(uint64_t*) data); data+=8; 
+            h[1] = (h[1]>>64)*(uint128_t)J64 + (uint64_t)h[1] * (uint128_t)J128;// round mix 64
+            data_len -= 16;
+        }
+        h[1] = (h[1]>>64)*(uint128_t)J_128 + (uint64_t)h[1] * (uint128_t)J_64;
+        if (__builtin_add_overflow(h[0],h[1],&h[0])) h[0] -= (uint128_t)MWC_PRIME<<64;
+//        if ((h[0]>>64)>=MWC_PRIME) h[0] -= (uint128_t)MWC_PRIME<<64;
+        h[0] = mwc_mod(h[0],MWC_PRIME, MWC_INV);
+    }
+    while (data_len>=16) {
+        data_len-=16;
+        uint128_t d = (*(uint128_t*) data); data+=16; 
+//        d = (uint64_t)d + (d>>64)*(uint128_t)MWC_MINUS_PRIME;// ленивое редуцирование
+        h[0] = mwc_foldm(h[0], d, J64, J128, MWC_PRIME);
+    }
+//        h[0] = mwc_foldm(h[0], 0, J_128, J_64, MWC_PRIME);
+
+    // uint64_t h1 = mwc_mod(h[1], MWC_PRIME, MWC_INV);
+    // uint64_t h0 = mwc_mod(h[0], MWC_PRIME, MWC_INV);
+    // h0 = mwc_maddm(h1, J_64, h0, MWC_PRIME);
+    // return h0;
+
+    // h[1] = (h[1]>>64)*(uint128_t)J_128 + (uint64_t)h[1] * (uint128_t)J_64;
+    // if (__builtin_add_overflow(h[0],h[1],&h[0])) h[0] -= (uint128_t)MWC_PRIME<<64;
+    return h[0];
+#if 0
+    uint128_t h[4] = {hash};
+    for(int i=0; i<SEGMENT_SIZE; i+=32, data+=32) {
+        for(int k=0; k<4; k++){
+            uint64_t d = *(uint64_t*)(data+8*k);
+            h[k] = mwc_foldm(h[k], d, J192, J256, MWC_PRIME);
+        }
+    }
+    h[0] = mwc_merge(h[0],h[2], J64, J128, MWC_PRIME);
+    h[1] = mwc_merge(h[1],h[3], J64, J128, MWC_PRIME);
+    h[0] = mwc_merge(h[0],h[1], J0,  J64,  MWC_PRIME);
+    return h[0];
+#endif
+}
+
 /*! \brief Модульнуя операция возведения в степень с неполным редуцированием */
 static uint64_t mwc_powm(uint64_t a, uint64_t e, uint64_t M)
 {
@@ -315,7 +373,56 @@ uint64_t mwc64_hash_8(uint64_t hash, uint8_t* data, size_t data_len){
     }
     return mix(hash)-IV;
 }
-#ifdef TEST_MWC64_HASH
+
+#define MWC_A1 0xffe118abuLL
+static inline uint64_t mwc64_next(uint64_t s, int r, uint64_t A) {
+    return A*((uint32_t)s<<(32-r)) + (s>>r);
+}
+uint64_t mwc64r2_hash(const uint8_t* data, uint64_t len, uint64_t seed){
+	uint64_t s[2];
+    s[0] = unmix(seed+=IV);
+    s[1] = unmix(seed+=IV);
+    int i;
+    while (len>=8){
+        len-=8;
+      uint64_t d0 = *(uint32_t*) data; data+=4;
+      uint64_t d1 = *(uint32_t*) data; data+=4;
+      uint64_t s0 = s[1], s1 = s[0]; //SHUFFLE
+      s[0]^= mwc64_next(s0^d0, 32, MWC_A0);
+      s[1]^= mwc64_next(s1^d1, 32, MWC_A1);
+    }
+    while (len>=4) {
+        len -= 4;
+        uint64_t d = *(uint32_t*) data; data+=4;
+        s[0] ^= mwc64_next(s[1]^d, 32, MWC_A0);
+    }
+    if (len&3) {
+        int r = len&3;
+        uint32_t d = 0;
+        __builtin_memcpy(&d, data, r); data+=r;
+        s[0] ^= mwc64_next(s[0]^d, 8*r, MWC_A0);
+    }
+    return mix(s[0]^s[1]);
+}
+
+#if 1//def TEST_MWC64_HASH
+uint64_t mwc64_hash_32(uint64_t hash, uint8_t* data, size_t data_len){
+    hash = unmix(hash+IV);
+    while (data_len>=4){
+        hash+= *(uint32_t*) data; data+=4;
+        hash = next(hash, 32);
+        data_len-=4;
+    }
+    if (data_len&2){
+        hash+= *(uint16_t*) data; data+=2;
+        hash = next(hash, 16);
+    }
+    if (data_len&1){
+        hash+= *(uint8_t*) data; data+=1;
+        hash = next(hash, 8);
+    }
+    return mix(hash)-IV;
+}
 uint64_t mwc64_hash_16(uint64_t hash, uint8_t* data, size_t data_len){
     hash = unmix(hash+IV);
     for (int i=0; i<data_len>>1; i++){
@@ -329,6 +436,7 @@ uint64_t mwc64_hash_16(uint64_t hash, uint8_t* data, size_t data_len){
     return mix(hash)-IV;
 }
 #include <stdio.h>
+#include <stdlib.h>
 /*! \brief Специальный вид инверсии для алгоритма редуцирования */
 static inline uint64_t INVL(uint64_t v) {
     return ((unsigned __int128)(-v)<<64)/v;
@@ -351,6 +459,10 @@ int main() {
     printf ("0x%08X\n", (uint32_t)h1 );
 if (1) {
     printf ("INV 0x%016llX\n", INVL(MWC_PRIME) );
+        uint64_t p=mwc_powm(2, (32u*2), MWC_PRIME);
+        printf ("jump(%3d) 0x%016llX\n", -32u*2, p);
+        uint64_t q=mwc_powm(2, (32u*4), MWC_PRIME);
+        printf ("jump(%3d) 0x%016llX\n", -32u*4, q);
     for (int i=0; i<8;i++) {// таблица переходов
         uint64_t p=mwc_powm(2, MWC_PRIME-1-(32u*i), MWC_PRIME);
         printf ("jump(%3d) 0x%016llX\n", 32u*i, p);
@@ -362,7 +474,10 @@ if (1) {
     uint8_t str2[] = "\x00\x00\x00""a\x00\x00\x00";
     uint8_t str4[] = "\x00\x00\x00\x00""bcd";
     uint8_t str3[] = "123abcd";
-    uint8_t str5[] = "0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef"
+    uint8_t str5[] = 
+        "0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef"
+        "0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef"
+        "0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef"
         "\xFF\xFF\xFF\xFF\xFF\xFF\xFF\xFF\xFF\xFF\xFF\xFF\xFF\xFF\xFF\xFF"
         "\xFF\xFF\xFF\xFF\xFF\xFF\xFF\xFF\xFF\xFF\xFF\xFF\xFF\xFF\xFF\xFF"
         "\xFF\xFF\xFF\xFF\xFF\xFF\xFF\xFF\xFF\xFF\xFF\xFF\xFF\xFF\xFF\xFF"
@@ -454,11 +569,18 @@ if (1) {
     printf ("0x%016llX\n", h1 );
     printf ("0x%016llX %s\n", h2, h1==h2?"PASS":"FAIL" );
     h1 = mwc64_hash_8(seed, str5, 725);
+    h3 = mwc64_hash_32(seed, str5, 725);
     h2 = mwc64_hash(seed, str5, 725);
 //    h2 = mwc64_skip(h2, 8);
     printf ("0x%016llX\n", h1 );
+    printf ("0x%016llX\n", h3 );
     printf ("0x%016llX %s\n", h2, h1==h2?"PASS":"FAIL" );
-
+    size_t len = 256*1024;
+    uint8_t *str = malloc(len);
+    for (int i=0;i<256*1024; i++) str[i] = i;
+    h1 = mwc64_hash(seed, str, len);
+    h2 = mwc64_hash_32(seed, str, len);
+    printf ("0x%016llX %s\n", h1, h1==h2?"PASS":"FAIL" );
 }
     return 0;
 }

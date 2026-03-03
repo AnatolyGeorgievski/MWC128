@@ -19,13 +19,8 @@ static inline uint64_t unmix_lea(uint64_t h) {
   h = (h ^ h >> 32)*MC2;
   return (h ^ h >> 32);
 }
-static inline uint64_t lehmer64_mix(uint64_t *s) {
-    uint128_t x = *(uint128_t*)s;
-    x = x * UINT64_C(0xda942042e4dd58b5) - UINT64_C(0x9e3779b97f4a7c15);   // фиксированный множитель (хороший 64-бит → 128-бит)
-    return x^(x>>64);   // берём старшие 64 бита как результат
-}
 //typedef unsigned int __attribute__((mode(TI)))   uint128_t;
-#define MWC_A1 		(uint128_t)0xffebb71d94fcdaf9ull
+#define MWC_A1 		UINT64_C(0xffebb71d94fcdaf9)
 #define MWC_NA1     UINT64_C(0x001448E26B032507)
 #define MUM_C       UINT64_C(0xa3b195354a39b70d)
 #define MUM_S       UINT64_C(0x82d2e9550235efc5)
@@ -59,13 +54,11 @@ void mwc128_hash(const void *in, size_t len, uint64_t seed, void* out) {
 	uint64_t s[2];
     s[0] = _mum(seed += IV, MUM_S);
     s[1] = IV;
-    if (unlikely(len>=8)){
-        do{
-            uint64_t d = GET_U64<false>(data, 0);
-            mwc128_next(s, d, 64);// ROUND MIX
-            len -= 8; data+=8;
-        } while (likely(len >= 8));
-    } 
+    while (len >= 8) {
+        uint64_t d = GET_U64<false>(data, 0);
+        mwc128_next(s, d, 64);// ROUND MIX
+        len -= 8; data+=8;
+    }
 	if (len) {
         if (len&4) {
             uint64_t d = GET_U32<false>(data, 0); data+=4;
@@ -79,8 +72,6 @@ void mwc128_hash(const void *in, size_t len, uint64_t seed, void* out) {
             uint64_t d = *(uint8_t*)data; data++;
             mwc128_next(s, d, 8);
         }
-        // d &= ~0uLL>>(64-len*8);
-        // mwc128_next(s, d, len*8);
     }
     uint64_t d = _mum(s[0]^s[1], MUM_C);// WY multiplier
     PUT_U64<bswap>(d, (uint8_t *)out,  0);
