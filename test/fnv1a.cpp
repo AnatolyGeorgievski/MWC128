@@ -72,6 +72,18 @@ static FORCE_INLINE uint64_t mumix( uint64_t A, uint64_t B) {
 typedef uint64_t (*prng_t)(uint64_t);
 typedef uint64_t (*mix_t)(uint64_t, uint64_t);
 typedef uint128_t (*mumix_t)(uint128_t, int, uint64_t);
+
+
+// FNV1a-64.mum -log2(p-value) summary:
+//   0     1     2     3     4     5     6     7     8     9    10    11    12
+// ----- ----- ----- ----- ----- ----- ----- ----- ----- ----- ----- ----- -----
+//  4462  1268   578   268   155    69    38    24    11     8     4     4     0
+
+// FNV1a-64.b -log2(p-value) summary:
+// 0     1     2     3     4     5     6     7     8     9    10    11    12
+// ----- ----- ----- ----- ----- ----- ----- ----- ----- ----- ----- ----- -----
+// 4428  1287   582   271   156    73    49    22     4     6     7     2     2
+
 template <bool bswap, mix_t unmix, mix_t mix, uint64_t C2>
 static void FNV1a( const void * in, size_t len, uint64_t seed, void * out ) {
     const uint8_t * data = (const uint8_t *)in;
@@ -89,6 +101,12 @@ static void FNV1a( const void * in, size_t len, uint64_t seed, void * out ) {
 #define M16     UINT64_C(0xcf8e683fca0566a1) // 59 32
 #define M24     (M16*M8) // 58 32
 #define M32     UINT64_C(0xaa13d9513f6eb141) // 58 32
+
+// FNV1-64.b -log2(p-value) summary:
+//   0     1     2     3     4     5     6     7     8     9    10    11    12
+// ----- ----- ----- ----- ----- ----- ----- ----- ----- ----- ----- ----- -----
+//  4504  1254   573   282   142    62    31    25     4     5     5     2     0
+
 // -log2(p-value) summary:
 //   0     1     2     3     4     5     6     7     8     9    10    11    12
 // ----- ----- ----- ----- ----- ----- ----- ----- ----- ----- ----- ----- -----
@@ -201,7 +219,7 @@ static inline uint64_t mwc_next(uint64_t x){
 
 // линейные и нелинейные скрамблеры
 static inline uint64_t ror_next(uint64_t x){
-    return ROTR64(x,8);
+    return ROTL64(x,8);
 }
 // линейные и нелинейные скрамблеры параметризуемые 8 16 32 
 static inline uint64_t rrx_next(uint64_t x){

@@ -199,34 +199,12 @@ void mwc64_hash_xor(const void* in, size_t len, uint64_t seed, void* out){
 
 template <bool bswap>
 void mwc64_hash(const void* in, size_t len, uint64_t seed, void* out){
-    const unsigned F = 4;//2:128 256, 
     const uint8_t* data = (const uint8_t*)in;
     uint64_t hash = unmix(seed + IV);
-//    uint64_t hash = _mum(seed + IV, UINT64_C(0x82d2e9550235efc5));
 #ifdef __SIZEOF_INT128__
-    if (len>=32) {
-        uint128_t h[F];
+    if (1 && len>=32) {
+        uint128_t h[1];
         h[0] = (uint128_t)hash;
-        if (0 && len>=8*F) {
-            for (unsigned int i=1;i<F;i++) h[i] = 0;
-            while (len>=8*F) {
-                for (unsigned int i=0;i<F;i++)
-                    h[i]+= *(uint64_t*)(data+i*8);
-                for (unsigned int i=0;i<F;i++) 
-                    h[i] = (h[i]>>64) + (uint64_t)h[i] * (uint128_t)j256;
-                data+=8*F; len -= 8*F;
-            }
-            h[0] = (h[0]>>64)*j64 + (uint64_t)h[0] * (uint128_t)j128;
-            h[1] = (h[1]>>64)*j64 + (uint64_t)h[1] * (uint128_t)j128;
-            if (__builtin_add_overflow(h[0],h[2],&h[0]))
-                h[0] -= (uint128_t)MWC_PRIME <<64;
-            if (__builtin_add_overflow(h[1],h[3],&h[1]))
-                h[1] -= (uint128_t)MWC_PRIME <<64;
-            h[0] = (h[0]>>64) + (uint64_t)h[0] * (uint128_t)j64;
-            if (__builtin_add_overflow(h[0],h[1],&h[0]))
-                h[0] -= (uint128_t)MWC_PRIME <<64;
-        }
-
         while (len>=8) {
             uint64_t d0 = (*(uint64_t*) data); data+=8; 
             h[0]+= d0;
@@ -258,10 +236,27 @@ void mwc64_hash(const void* in, size_t len, uint64_t seed, void* out){
         hash = _next(hash, 8);
     }
     uint64_t d = mix(hash)-IV;
-//    uint64_t d = _mum(hash^hash>>32, UINT64_C(0xa3b195354a39b70d))-IV;
     PUT_U64<bswap>(d, (uint8_t *)out,  0);
 }
-
+template <bool bswap>
+void mwc64_hash_mini(const void* in, size_t len, uint64_t seed, void* out){
+    const uint8_t* data = (const uint8_t*)in;
+    uint64_t hash = seed+IV;
+    while (len>=4) {
+        len-=4;
+        hash+= *(uint32_t*) data; data+=4;
+        hash = _next(hash, 32);
+    }
+    if (len&2){
+        hash+= *(uint16_t*) data; data+=2;
+        hash = _next(hash, 16);
+    }
+    if (len&1){
+        hash+= *(uint8_t*) data; data+=1;
+        hash = _next(hash, 8);
+    }
+    PUT_U64<bswap>(hash, (uint8_t *)out,  0);
+}
 static inline uint128_t mwc_foldm(uint128_t h, uint128_t d, const uint64_t j1, const uint64_t j2, const uint64_t M){
     if (__builtin_add_overflow(h, d, &h))
         h -= (uint128_t)M<<64;
@@ -279,6 +274,19 @@ REGISTER_FAMILY(mwc128,
    $.src_status = HashFamilyInfo::SRC_ACTIVE
  );
 
+REGISTER_HASH(MWC64_64__mini,
+   $.desc       = "64-bit MWC-64 compact",
+   $.hash_flags =
+        0,
+   $.impl_flags =
+        FLAG_IMPL_MULTIPLY   |
+        FLAG_IMPL_LICENSE_PUBLIC_DOMAIN,
+   $.bits = 64,
+   $.verification_LE = 0x3EBAAF43,
+   $.verification_BE = 0x4B032B63,
+   $.hashfn_native   = mwc64_hash_mini<false>,
+   $.hashfn_bswap    = mwc64_hash_mini<true>
+ );
 REGISTER_HASH(MWC64_64,
    $.desc       = "64-bit MWC-64",
    $.hash_flags =
