@@ -1,6 +1,12 @@
 /*! CRC-64/XZ and similar hashes
-    * Copyright (C) 2026  Anatoly M. Georgievskii
- 
+ * Copyright (C) 2026  Anatoly M. Georgievskii
+
+В ZFS используется CRC-64/XZ с xorout =0  
+	ZFS_CRC64_POLY 0xC96C5795D7870F42ULL	-- ECMA-182, reflected form
+B Btrfs используется CRC-32/C 
+
+	\see https://reveng.sourceforge.io/crc-catalogue/all.htm
+
 CRC-64/ECMA-182
     width=64 poly=0x42f0e1eba9ea3693 init=0x0000000000000000 refin=false refout=false xorout=0x0000000000000000 
     check=0x6c40df5f0b497347 residue=0x0000000000000000 name="CRC-64/ECMA-182"
@@ -27,7 +33,7 @@ CRC-32/BZIP2
 	width=32 poly=0x04c11db7 init=0xffffffff refin=false refout=false xorout=0xffffffff check=0xfc891918 residue=0xc704dd7b name="CRC-32/BZIP2"
 CRC-32/CKSUM
 	width=32 poly=0x04c11db7 init=0x00000000 refin=false refout=false xorout=0xffffffff check=0x765e7680 residue=0xc704dd7b name="CRC-32/CKSUM"
-CRC-32/ISCSI
+CRC-32/ISCSI Alias: CRC-32/BASE91-C, CRC-32/CASTAGNOLI, CRC-32/INTERLAKEN, CRC-32C, CRC-32/NVME
 	width=32 poly=0x1edc6f41 init=0xffffffff refin=true refout=true xorout=0xffffffff check=0xe3069283 residue=0xb798b438 name="CRC-32/ISCSI"
 CRC-32/ISO-HDLC
 	width=32 poly=0x04c11db7 init=0xffffffff refin=true refout=true xorout=0xffffffff check=0xcbf43926 residue=0xdebb20e3 name="CRC-32/ISO-HDLC"
@@ -37,13 +43,21 @@ CRC-24/OPENPGP
 	width=24 poly=0x864cfb init=0xb704ce refin=false refout=false xorout=0x000000 check=0x21cf02 residue=0x000000 name="CRC-24/OPENPGP"
 */
 #include <stdint.h>
+#include <stdlib.h>
 
+#define ZFS_CRC64_POLY 0xC96C5795D7870F42ULL
 #define CRC64_MS_CHECK   UINT64_C(0x75d4b74f024eceea)
 #define CRC64_WE_CHECK   UINT64_C(0x62ec59e3f1a4f00a)
 #define CRC64_XZ_CHECK   UINT64_C(0x995dc9bbdf1939fa)
 #define CRC64_ECMA_CHECK UINT64_C(0x6c40df5f0b497347)
 #define CRC64_NVME_CHECK UINT64_C(0xae8b14860a799888)
 #define CRC64_GO_CHECK   UINT64_C(0xb90956c775a41001)
+#define POLY_CRC32   0xEDB88320 // CRC-32   (gzip, bzip, SATA, MPEG-2, etc.)
+#define POLY_CRC32C  0x82F63B78 // CRC-32c  (iSCSI, SCTP, ext4, etc.)
+#define POLY_CRC32K  0xEB31D82E // CRC-32k  (Koopman)
+#define POLY_CRC32K2 0x992C1A4C // CRC-32k2 (Koopman 2)
+#define POLY_CRC32Q  0xD5828281 // CRC-32q  (aviation)
+
 #define CRC32K_CHECK   0xd2c22f51
 #define CRC32C_CHECK   0xe3069283
 #define CRC32B_CHECK   0xcbf43926
@@ -55,28 +69,18 @@ CRC-24/OPENPGP
 static inline
 poly64x2_t CL_MUL128(poly64x2_t a, poly64x2_t b, const int c)
 {
-/* if (c==0x11) {
-
-	return (poly64x2_t) vmull_hight_p64 ( __t1, __t2);
-} else */
-{
 	poly64_t __t1 = (poly64_t)vgetq_lane_p64(a, c & 1);
 	poly64_t __t2 = (poly64_t)vgetq_lane_p64(b,(c>>4) & 1);
 
-	return (poly64x2_t) __builtin_arm_crypto_vmullp64 ( __t1,  __t2);
-}
-//    return (v2du)__builtin_arm_crypto_vmullp64(vgetq_lane_u64(a, c & 0x1),vgetq_lane_u64(b, (c & 0x10)?1:0));
+	return (poly64x2_t) vmull_p64 ( __t1,  __t2);
 }
 static inline uint8x16_t LOAD128U(const uint8_t* p) {
 	return vld1q_u8(p);
 }
 static inline poly64x2_t SLL128U(poly64x2_t a, const int bits) {
-	return (poly64x2_t) vextq_u8((uint8x16_t)a,(uint8x16_t){0}, bits>>3);
+	return (poly64x2_t) vextq_u8(vdupq_n_u8(0), (uint8x16_t)(a), 16 - (bits>>3));
+//	return (poly64x2_t) vextq_u8((uint8x16_t)a,(uint8x16_t){0}, bits>>3);
 	//return (v2du){(uint64_t)a[0]<<bits, (uint64_t)a[0]>>(64-bits) | (uint64_t)a[1]<<(bits)};
-}
-static inline poly64x2_t SRL128U(poly64x2_t a, const int bits) {
-	return (poly64x2_t) vextq_u8((uint8x16_t){0},(uint8x16_t)a, (128-bits)>>3);
-//	return (v2du){(uint64_t)a[0]>>bits  | (uint64_t)a[1]<<(64-bits), (uint64_t)a[1]>>(bits)};
 }
 static inline uint8x16_t REVERSE(uint8x16_t v) {
 	v = vrev64q_u8(v);
@@ -109,7 +113,8 @@ static inline v16qi LOAD128U(const uint8_t* p) {
     return (v16qi)_mm_loadu_si128((const __m128i_u*)p);
 }
 static inline poly64x2_t SLL128U(poly64x2_t a, const int bits) {
-    return (poly64x2_t)__builtin_ia32_pslldqi128((__m128i)a, bits);
+//    return (poly64x2_t)__builtin_ia32_pslldqi128((__m128i)a, bits);
+	return (poly64x2_t)_mm_slli_si128((__m128i)a, bits>>3);
 }
 static const uint8x16_t BSWAP_MASK = {15,14,13,12,11,10,9,8,7,6,5,4,3,2,1,0};
 static inline uint8x16_t REVERSE(uint8x16_t x) {
@@ -644,6 +649,47 @@ __asm volatile("# LLVM-MCA-END CRC64B_update_N");
 	c ^= CL_MUL128(t, ctx->KBP, 0x10);
 	return c[1];
 }
+#if defined(__x86_64__) && defined(__SSE4_2__)
+// CPUID Flags: SSE4.2 
+/* Compute CRC-32C using the Intel hardware instruction. */
+static uint32_t update_crc32c_hw( uint32_t crc, const uint8_t * data, size_t len ) {
+    uint64_t        crc0 = crc;
+    while (len >=8) {
+		len-=8;
+        crc0  = _mm_crc32_u64(crc0, *(uint64_t*)data);
+        data += 8;
+    }
+    if (len >= 4) {
+		len -= 4;
+        crc0 = _mm_crc32_u32(crc0, *(uint32_t*)data);
+		data += 4;
+    }
+    if (len& 2) {
+        crc0 = _mm_crc32_u16(crc0, *(uint16_t*)data);
+	 	data += 2;
+    }
+    if (len&1) {
+        crc0 = _mm_crc32_u8(crc0, *data++);
+    }
+    return (uint32_t)crc0;
+}
+#endif
+#if defined(__aarch64__) && defined(__ARM_FEATURE_CRC32)// Set for 32-bit targets only.
+uint32_t  update_crc32b_hw(uint32_t crc, const uint8_t  *data, size_t len) {
+	uint64_t        crc0 = crc;
+    while (len>=8) {
+		len -= 8;
+        uint64_t v = *(uint64_t*) data; data+=8;
+        __asm__ volatile("crc32x %w0, %w0, %x1" : "+r"(crc0) : "r"(v));
+    }
+    while (len-->0) {
+        uint64_t v = *data++;
+        __asm__ volatile("crc32b %w0, %w0, %w1" : "+r"(crc0) : "r"(v));
+    }
+    return crc0;
+}
+#endif
+
 uint32_t update_crc32b(uint32_t crc, const uint8_t * data, size_t length){
     return CRC32B_update_N(&CRC32B_ctx, crc, data, length);
 }
@@ -668,6 +714,92 @@ uint32_t update_crc16(uint32_t crc, const uint8_t * data, size_t length){
 	crc64 = CRC32_update_N(&CRC16_ctx, crc64, data, length);
 	return crc64>>48;
 }
+// тестирование реализации с использованием маленьких таблиц
+//CRC-64/WE
+//POLY=0x42F0E1EBA9EA3693
+static const uint64_t CRC64WE_lookup4[] = {
+0x0000000000000000, 0x42F0E1EBA9EA3693, 0x85E1C3D753D46D26, 0xC711223CFA3E5BB5,
+0x493366450E42ECDF, 0x0BC387AEA7A8DA4C, 0xCCD2A5925D9681F9, 0x8E224479F47CB76A,
+0x9266CC8A1C85D9BE, 0xD0962D61B56FEF2D, 0x17870F5D4F51B498, 0x5577EEB6E6BB820B,
+0xDB55AACF12C73561, 0x99A54B24BB2D03F2, 0x5EB4691841135847, 0x1C4488F3E8F96ED4,
+//Test =62EC59E3F1A4F00A ..ok
+};
+static uint64_t update_crc64we_lut(uint64_t crc, const uint8_t * data, size_t length){
+	while (length-->0) {
+		uint64_t val = *data++;
+		crc^= (val <<56);
+		crc = (crc << 4) ^ CRC64WE_lookup4[crc>>60];
+		crc = (crc << 4) ^ CRC64WE_lookup4[crc>>60];
+	}
+	return crc;
+}
+
+//CRC-64/XZ
+//POLY=0xC96C5795D7870F42
+static const uint64_t CRC64XZ_lookup4[] = {
+0x0000000000000000, 0x7D9BA13851336649, 0xFB374270A266CC92, 0x86ACE348F355AADB,
+0x64B62BCAEBC387A1, 0x192D8AF2BAF0E1E8, 0x9F8169BA49A54B33, 0xE21AC88218962D7A,
+0xC96C5795D7870F42, 0xB4F7F6AD86B4690B, 0x325B15E575E1C3D0, 0x4FC0B4DD24D2A599,
+0xADDA7C5F3C4488E3, 0xD041DD676D77EEAA, 0x56ED3E2F9E224471, 0x2B769F17CF112238,
+// Test =995DC9BBDF1939FA ..ok
+};
+static uint64_t update_crc64xz_lut(uint64_t crc, const uint8_t * data, size_t length){
+	while (length-->0) {
+		crc^= *data++;
+		crc = (crc >> 4) ^ CRC64XZ_lookup4[crc & 0xF ];
+		crc = (crc >> 4) ^ CRC64XZ_lookup4[crc & 0xF ];
+	}
+	return crc;
+}
+
+static const uint32_t CRC32C_lookup4[16] = {
+0x00000000L, 0x105EC76FL, 0x20BD8EDEL, 0x30E349B1L,
+0x417B1DBCL, 0x5125DAD3L, 0x61C69362L, 0x7198540DL,
+0x82F63B78L, 0x92A8FC17L, 0xA24BB5A6L, 0xB21572C9L,
+0xC38D26C4L, 0xD3D3E1ABL, 0xE330A81AL, 0xF36E6F75L,
+};
+/*!
+    CRC-32C (Castagnoli) 	iSCSI, SCTP, G.hn payload, SSE4.2, Btrfs, ext4 	0x1EDC6F41 	инверсный полином 0x82F63B78
+    \see [RFC 4960] Appendix B. CRC32c Checksum Calculation <http://tools.ietf.org/html/rfc4960#appendix-B>
+*/
+static uint32_t update_crc32c_lut(uint32_t crc, const uint8_t * data, size_t length){
+	while (length-->0) {
+		crc^= *data++;
+		crc = (crc>>4) ^ CRC32C_lookup4[crc & 0xF];
+		crc = (crc>>4) ^ CRC32C_lookup4[crc & 0xF];
+	}
+	return crc;
+}
+
+#if defined(__x86_64__) || defined(__i386__)
+    #define READ_TIMESTAMP() __builtin_ia32_rdtsc()
+#elif defined(__aarch64__)
+    #define READ_TIMESTAMP() ({ uint64_t _t; \
+        asm volatile("mrs %0, cntvct_el0" : "=r"(_t)); _t; })
+// Чтение частоты таймера (обычно константа, например 19.2 MHz или 50 MHz)
+static inline uint64_t get_timer_freq(void) {
+    uint64_t freq;
+    asm volatile("mrs %0, cntfrq_el0" : "=r"(freq));
+    return freq;
+}
+
+#else
+    #error "Unsupported architecture"
+#endif
+#include <stdatomic.h>
+void load_fence(void) {
+    atomic_thread_fence(memory_order_acquire);
+}
+#if defined(__x86_64__) || defined(__i386__)
+    #define LOAD_FENCE()   __builtin_ia32_lfence()
+    #define STORE_FENCE()  __builtin_ia32_sfence()
+    #define FULL_FENCE()   __builtin_ia32_mfence()
+#else
+    #define LOAD_FENCE()   atomic_thread_fence(memory_order_acquire)
+    #define STORE_FENCE()  atomic_thread_fence(memory_order_release)
+    #define FULL_FENCE()   atomic_thread_fence(memory_order_seq_cst)
+#endif
+
 #ifdef TEST_CRC64
 #include <stdio.h>
 #include <inttypes.h>
@@ -685,17 +817,19 @@ int main (){
 	int count = 8;
 	t_min = ~0; crc64=~0uLL;
 	do{// методика тестирования производительности
-		__builtin_ia32_lfence();
-		ts = __builtin_ia32_rdtsc();
+		load_fence();
+		ts = READ_TIMESTAMP();
 		crc64 = CRC64_update_N(&CRC64WE_ctx, crc64, &data[0], len);
-		ts = __builtin_ia32_rdtsc()-ts;
+		ts = READ_TIMESTAMP()-ts;
 		if (t_min > ts) t_min = ts;
 	} while(--count);
 	printf("CRC64/WE = %016"PRIX64" (xN) %.2f bytes/clk %.1f GB/s @ 3.5 GHz\n", crc64 ^ ~0ULL, (double)(len)/(t_min), (double)(len)/(t_min)*3.5);
 
 	crc64 = CRC64_update_N(&CRC64WE_ctx, ~0ULL, crc_check, 9);
 	printf("CRC64/WE check = %016"PRIX64" (xN) %s\n", crc64 ^ ~0ULL, (crc64 ^ ~0ULL) == CRC64_WE_CHECK?"PASS":"FAIL");
-	
+	crc64 = update_crc64we_lut(~0ULL, crc_check, 9);
+	printf("CRC64/WE check = %016"PRIX64" (xN) %s\n", crc64 ^ ~0ULL, (crc64 ^ ~0ULL) == CRC64_WE_CHECK?"PASS":"FAIL");
+
 	crc64 = CRC64_update_N(&CRC64WE_ctx, 0, crc_check, 9);
 	printf("CRC-64/ECMA-182 check = %016"PRIX64" (xN) %s\n", crc64, (crc64) == CRC64_ECMA_CHECK?"PASS":"FAIL");
 
@@ -703,15 +837,28 @@ int main (){
 	count = 8;
 	t_min = ~0; crc64 = ~0uLL;
 	do{// методика тестирования производительности
-		__builtin_ia32_lfence();
-		ts = __builtin_ia32_rdtsc();
+		load_fence();
+		ts = READ_TIMESTAMP();
 		crc64 = CRC64B_update_N(&CRC64XZ_ctx,crc64, data, len);
-		ts = __builtin_ia32_rdtsc() - ts;
+		ts = READ_TIMESTAMP() - ts;
+		if (t_min > ts) t_min = ts;
+	} while(--count);
+	printf("CRC64/XZ = %016"PRIX64" (xN) %.2f bytes/clk %.1f GB/s @ 3.5 GHz\n", crc64 ^ ~0ULL, (double)(len)/(t_min), (double)(len)/(t_min)*3.5);
+
+	count = 8;
+	t_min = ~0; crc64 = ~0uLL;
+	do{// методика тестирования производительности
+		load_fence();
+		ts = READ_TIMESTAMP();
+		crc64 = update_crc64xz_lut(crc64, data, len);
+		ts = READ_TIMESTAMP() - ts;
 		if (t_min > ts) t_min = ts;
 	} while(--count);
 	printf("CRC64/XZ = %016"PRIX64" (xN) %.2f bytes/clk %.1f GB/s @ 3.5 GHz\n", crc64 ^ ~0ULL, (double)(len)/(t_min), (double)(len)/(t_min)*3.5);
 
 	crc64 = CRC64B_update_N(&CRC64XZ_ctx, ~0ULL, crc_check, 9);
+	printf("CRC64/XZ check = %016"PRIX64" (xN) %s\n", crc64 ^ ~0ULL, (crc64 ^ ~0ULL) == CRC64_XZ_CHECK?"PASS":"FAIL");
+	crc64 = update_crc64xz_lut(~0ULL, crc_check, 9);
 	printf("CRC64/XZ check = %016"PRIX64" (xN) %s\n", crc64 ^ ~0ULL, (crc64 ^ ~0ULL) == CRC64_XZ_CHECK?"PASS":"FAIL");
 
 	crc64 = CRC64B_update_N(&CRC64NV_ctx, ~0ULL, crc_check, 9);
@@ -724,40 +871,76 @@ int main (){
 	printf("CRC64/GO check = %016"PRIX64" (xN) %s\n", crc64 ^ ~0ULL, (crc64 ^ ~0ULL) == CRC64_GO_CHECK?"PASS":"FAIL");
 	uint32_t crc32;
 	crc32 = update_crc32k(~0u, crc_check, 9);
-	printf("CRC32B/K check = %08"PRIX32" (xN) %s\n", crc32 ^ 0U, (crc32 ^ 0U) == CRC32K_CHECK?"PASS":"FAIL");
+	printf("CRC-32K  check = %08"PRIX32" (xN) %s\n", crc32 ^ 0U, (crc32 ^ 0U) == CRC32K_CHECK?"PASS":"FAIL");
 	crc32 = update_crc32c(~0u, crc_check, 9);
-	printf("CRC32B/C check = %08"PRIX32" (xN) %s\n", crc32 ^ ~0U, (crc32 ^ ~0U) == CRC32C_CHECK?"PASS":"FAIL");
+	printf("CRC-32C  check = %08"PRIX32" (xN) %s\n", crc32 ^ ~0U, (crc32 ^ ~0U) == CRC32C_CHECK?"PASS":"FAIL");
+	crc32 = update_crc32c_lut(~0u, crc_check, 9);
+	printf("CRC-32C   check = %08"PRIX32" (xN) %s\n", crc32 ^ ~0U, (crc32 ^ ~0U) == CRC32C_CHECK?"PASS":"FAIL");
+
+#if  defined(__SSE4_2__)
+	crc32 = update_crc32c_hw(~0u, crc_check, 9);
+	printf("CRC-32C.HW check = %08"PRIX32" (xN) %s\n", crc32 ^ ~0U, (crc32 ^ ~0U) == CRC32C_CHECK?"PASS":"FAIL");
+#endif
+#if defined(__aarch64__) && defined(__ARM_FEATURE_CRC32)// AArch64
+	crc32 = update_crc32b_hw(~0u, crc_check, 9);
+	printf("CRC-32B.HW check = %08"PRIX32" (xN) %s\n", crc32 ^ ~0U, (crc32 ^ ~0U) == CRC32B_CHECK?"PASS":"FAIL");
+#endif
 	crc32 = update_crc32b(~0u, crc_check, 9);
-	printf("CRC32B   check = %08"PRIX32" (xN) %s\n", crc32 ^ ~0U, (crc32 ^ ~0U) == CRC32B_CHECK?"PASS":"FAIL");
+	printf("CRC-32B   check = %08"PRIX32" (xN) %s\n", crc32 ^ ~0U, (crc32 ^ ~0U) == CRC32B_CHECK?"PASS":"FAIL");
 
 	count = 8;
 	t_min = ~0; crc32 = ~0;
 	do{
-		__builtin_ia32_lfence();
-		ts = __builtin_ia32_rdtsc();
+		load_fence();
+		ts = READ_TIMESTAMP();
 		crc32 = update_crc32b(crc32, data, len);
-		ts = __builtin_ia32_rdtsc() - ts;
+		ts = READ_TIMESTAMP() - ts;
 		if (t_min > ts) t_min = ts;
 	} while(--count);
 	printf("CRC32B      = %08"PRIX32" (xN) %.2f bytes/clk %.1f GB/s @ 3.5 GHz\n", crc32 ^ ~0ULL, (double)(len)/(t_min), (double)(len)/t_min*3.5);
+
+#if defined(__SSE4_2__) // x86
 	count = 8;
 	t_min = ~0; crc32 = ~0;
 	do{
-		__builtin_ia32_lfence();
-		ts = __builtin_ia32_rdtsc();
-		crc32 = update_crc32(crc32, data, len);
-		ts = __builtin_ia32_rdtsc() - ts;
+		load_fence();
+		ts = READ_TIMESTAMP();
+		crc32 = update_crc32c_hw(crc32, data, len);
+		ts = READ_TIMESTAMP() - ts;
 		if (t_min > ts) t_min = ts;
 	} while(--count);
-	printf("CRC32/CKSUM = %08"PRIX32" (xN) %.2f bytes/clk %.1f GB/s @ 3.5 GHz\n", crc32 ^ ~0ULL, (double)(len)/(t_min), (double)(len)/t_min*3.5);
+	printf("CRC-32C.HW    = %08"PRIX32" (xN) %.2f bytes/clk %.1f GB/s @ 3.5 GHz\n", crc32 ^ ~0ULL, (double)(len)/(t_min), (double)(len)/t_min*3.5);
+#endif
+#if defined(__aarch64__) && defined(__ARM_FEATURE_CRC32)// AArch64
+	count = 8;
+	t_min = ~0; crc32 = ~0;
+	do{
+		load_fence();
+		ts = READ_TIMESTAMP();
+		crc32 = update_crc32b_hw(crc32, data, len);
+		ts = READ_TIMESTAMP() - ts;
+		if (t_min > ts) t_min = ts;
+	} while(--count);
+	printf("CRC-32B.HW    = %08"PRIX32" (xN) %.2f bytes/clk %.1f GB/s @ 3.5 GHz\n", crc32 ^ ~0ULL, (double)(len)/(t_min), (double)(len)/t_min*3.5);
+#endif
+	count = 8;
+	t_min = ~0; crc32 = ~0;
+	do{
+		load_fence();
+		ts = READ_TIMESTAMP();
+		crc32 = update_crc32(crc32, data, len);
+		ts = READ_TIMESTAMP() - ts;
+		if (t_min > ts) t_min = ts;
+	} while(--count);
+	printf("CRC-32/CKSUM = %08"PRIX32" (xN) %.2f bytes/clk %.1f GB/s @ 3.5 GHz\n", crc32 ^ ~0ULL, (double)(len)/(t_min), (double)(len)/t_min*3.5);
 
 
 	crc32 = update_crc32(~0u, crc_check, 9);
-	printf("CRC32/BZIP2  check = %08"PRIX32" (xN) %s\n", crc32 ^ ~0U, (crc32 ^ ~0U) == CRC32_CHECK?"PASS":"FAIL");
+	printf("CRC-32/BZIP2  check = %08"PRIX32" (xN) %s\n", crc32 ^ ~0U, (crc32 ^ ~0U) == CRC32_CHECK?"PASS":"FAIL");
 
-	ts = __builtin_ia32_rdtsc();
+	ts = READ_TIMESTAMP();
 	crc32 = update_crc24(CRC24_PGP_INIT, crc_check, 9);
-	ts-= __builtin_ia32_rdtsc();
+	ts-= READ_TIMESTAMP();
 
 	printf("CRC-24/PGP = %06X (xN) %u cycles %s\n", crc32, -ts, crc32==CRC24_PGP_CHECK?"PASS":"FAIL");
     return 0;

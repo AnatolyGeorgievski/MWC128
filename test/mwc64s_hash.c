@@ -67,31 +67,58 @@ int64_t mod_gold(int128_t a, int64_t q, int64_t qm){
 
     return (a>>64) - t;
 }
-/*! \brief Функция для вычисления a^{-1} mod 2^{64} */
-static uint64_t inverse_u64(uint64_t a) {
-    uint64_t x = a;
+/*! \brief Функция для вычисления a^{-1} mod 2^{64} . Метод Ньютона */
+static uint64_t mod_inverse_u64(uint64_t a) {
+    uint64_t x=a;
     // 5 итераций — стандарт для 64 бит
-    x *= 2ULL - a * x;
-    x *= 2ULL - a * x;
-    x *= 2ULL - a * x;
-    x *= 2ULL - a * x;
-    x *= 2ULL - a * x;
+    int count = 6-1;// log2(N) -1
+    uint64_t mask = ~0uLL;
+    do {
+    x = (x *(2ULL - a * x)) & mask;
+    } while (--count);
+    return x;
+}
+/**
+ * Нахождение обратного элемента по модулю 2^64 бинарным методом.
+ * Оптимизированная версия с отслеживанием остатка.
+ * Сложность: O(64) операций (сдвиги и сложения).
+ */
+uint64_t mod_inverse_binary(uint64_t a) {
+    uint64_t x = 1;       // Текущее приближение обратного
+    uint64_t r = a - 1;   // Остаток: r = a * x - 1. Изначально x=1, значит r = a-1
+    
+    // Мы хотим, чтобы r стало равным 0 (по модулю 2^64).
+    // Проходим по битам от 1 до 63.
+    for (int i = 1; i < 64; i++) {
+        // Если i-й бит остатка равен 1, значит a*x != 1 mod 2^(i+1)
+        // Нужно добавить 2^i к x, чтобы обнулить этот бит в произведении.
+        if ((r >> i) & 1) {
+            x |= (1ULL << i);      // Устанавливаем i-й бит в x
+            r += a << i;           // Обновляем остаток: новый r = старый r + a * 2^i
+        }
+    }
+    
     return x;
 }
 #include <stdio.h>
 int main(){
     int64_t q  = ((int64_t)MWC_A<<32) +1;
-    int64_t qm = inverse_u64(q);
-    printf("%016llx %016llx %d\n", q, qm, q*qm);
+    int64_t qm = mod_inverse_u64(q);
+    printf("%016llx %016llx %lld\n", q, qm, q*qm);
+    qm = mod_inverse_binary(q);
+    printf("%016llx %016llx %lld\n", q, qm, q*qm);
+
     q  = -(1uLL<<32) +1;
-    qm = inverse_u64(q);
-    printf("%016llx %016llx %d\n", q, qm, q*qm);
+    qm = mod_inverse_u64(q);
+    printf("%016llx %016llx %lld\n", q, qm, q*qm);
+    qm = mod_inverse_binary(q);
+    printf("%016llx %016llx %lld\n", q, qm, q*qm);
     int32_t primes[] = {MWC_A};
         printf("Signed Montgomery test\n");
         for (int k = 0; k< sizeof(primes)/sizeof(primes[0]); k++) {
             int64_t p = ((int64_t)primes[k]<<32) +1;
             //if ((p>>31)!=0) continue;
-            int64_t pi = inverse_u64(p);
+            int64_t pi = mod_inverse_u64(p);
             printf ("p=%016llx pi = %016llx %d \n",p, pi, p*(pi));
             for (int64_t a =-p/2; a<p/4; a++)
             {

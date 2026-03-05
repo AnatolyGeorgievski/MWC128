@@ -33,35 +33,21 @@ CRC-64/XZ
 static inline
 poly64x2_t CL_MUL128(poly64x2_t a, poly64x2_t b, const int c)
 {
-/* if (c==0x11) {
-
-	return (poly64x2_t) vmull_hight_p64 ( __t1, __t2);
-} else */
-{
 	poly64_t __t1 = (poly64_t)vgetq_lane_p64(a, c & 1);
 	poly64_t __t2 = (poly64_t)vgetq_lane_p64(b,(c>>4) & 1);
-
-	return (poly64x2_t) __builtin_arm_crypto_vmullp64 ( __t1,  __t2);
-}
-//    return (v2du)__builtin_arm_crypto_vmullp64(vgetq_lane_u64(a, c & 0x1),vgetq_lane_u64(b, (c & 0x10)?1:0));
+// __builtin_arm_crypto_vmullp64
+	return (poly64x2_t) __builtin_aarch64_crypto_pmulldi_ppp ( __t1,  __t2);
 }
 static inline uint8x16_t LOAD128U(const uint8_t* p) {
 	return vld1q_u8(p);
 }
 static inline poly64x2_t SLL128U(poly64x2_t a, const int bits) {
-	return (poly64x2_t) vextq_u8((uint8x16_t)a,(uint8x16_t){0}, bits>>3);
-	//return (v2du){(uint64_t)a[0]<<bits, (uint64_t)a[0]>>(64-bits) | (uint64_t)a[1]<<(bits)};
-}
-static inline poly64x2_t SRL128U(poly64x2_t a, const int bits) {
-	return (poly64x2_t) vextq_u8((uint8x16_t){0},(uint8x16_t)a, (128-bits)>>3);
-//	return (v2du){(uint64_t)a[0]>>bits  | (uint64_t)a[1]<<(64-bits), (uint64_t)a[1]>>(bits)};
+    const uint8x16_t Z = {0};
+	return (poly64x2_t) vextq_u8(Z, (uint8x16_t)(a), 16 - (bits>>3));
 }
 static inline uint8x16_t REVERSE(uint8x16_t v) {
 	v = vrev64q_u8(v);
 	return vextq_u8(v,v,8);
-//	uint64x2_t t = (uint64x2_t)vrev64q_u8((uint8x16_t)x);
-//	return (v16qi) vcombine_u64(vgetq_lane_u64(t,1), vgetq_lane_u64(t,0));
-//	return (v16qi)(v2du){(uint64_t)vrev64_u8((uint8x8_t) vgetq_lane_u64(t,1)), (uint64_t) vrev64_u8((uint8x8_t)vgetq_lane_u64(t,0))};
 }
 #else
 	#include <x86intrin.h>
@@ -84,7 +70,8 @@ static inline v16qi LOAD128U(const uint8_t* p) {
     return (v16qi)_mm_loadu_si128((const __m128i_u*)p);
 }
 static inline poly64x2_t SLL128U(poly64x2_t a, const int bits) {
-    return (poly64x2_t)__builtin_ia32_pslldqi128((__m128i)a, bits);
+	return (poly64x2_t)_mm_slli_si128((__m128i)a, bits>>3);
+//    return (poly64x2_t)__builtin_ia32_pslldqi128((__m128i)a, bits);
 }
 static const uint8x16_t BSWAP_MASK = {15,14,13,12,11,10,9,8,7,6,5,4,3,2,1,0};
 static inline uint8x16_t REVERSE(uint8x16_t x) {
@@ -382,9 +369,9 @@ __asm volatile("# LLVM-MCA-END CRC64B_update_N_fold2");
 template <bool bswap>
 void CRC64WE_update_N(const void* in, uint64_t len, uint64_t crc, void* out){
 //    crc = _mum(crc^IV, MUM_C);
-    crc = CRC64B_update_N((const uint8_t*)in, len, crc^INV, &CRC64WE_ctx);
+    crc = CRC64_update_N((const uint8_t*)in, len, crc^INV, &CRC64WE_ctx);
 //    crc = _mum(crc,MUM_C);
-    PUT_U64<bswap>(crc, (uint8_t *)out,  0);
+    PUT_U64<bswap>(crc^INV, (uint8_t *)out,  0);
 }
 template <bool bswap>
 void CRC64XZ_update_N(const void* in, uint64_t len, uint64_t crc, void* out){
@@ -421,7 +408,7 @@ REGISTER_HASH(CRC64_XZ,
         FLAG_IMPL_MULTIPLY_64_128   |
         FLAG_IMPL_LICENSE_PUBLIC_DOMAIN,
    $.bits = 64,
-   $.verification_LE = 0x3EBAAF43,
+   $.verification_LE = 0xD4F62611,
    $.verification_BE = 0x4B032B63,
    $.hashfn_native   = CRC64XZ_update_N<false>,
    $.hashfn_bswap    = CRC64XZ_update_N<true>
@@ -435,7 +422,7 @@ REGISTER_HASH(CRC64_MS,
         FLAG_IMPL_MULTIPLY_64_128   |
         FLAG_IMPL_LICENSE_PUBLIC_DOMAIN,
    $.bits = 64,
-   $.verification_LE = 0x3EBAAF43,
+   $.verification_LE = 0xA9E34D97,
    $.verification_BE = 0x4B032B63,
    $.hashfn_native   = CRC64MS_update_N<false>,
    $.hashfn_bswap    = CRC64MS_update_N<true>
@@ -463,7 +450,7 @@ REGISTER_HASH(CRC64_NVME,
         FLAG_IMPL_MULTIPLY_64_128   |
         FLAG_IMPL_LICENSE_PUBLIC_DOMAIN,
    $.bits = 64,
-   $.verification_LE = 0xF28DCE16,
+   $.verification_LE = 0xE048AF19,
    $.verification_BE = 0x3258320A,
    $.hashfn_native   = CRC64NV_update_N<false>,
    $.hashfn_bswap    = CRC64NV_update_N<true>
@@ -477,7 +464,7 @@ REGISTER_HASH(CRC64_NVME,
         FLAG_IMPL_MULTIPLY_64_128   |
         FLAG_IMPL_LICENSE_PUBLIC_DOMAIN,
    $.bits = 64,
-   $.verification_LE = 0xF28DCE16,
+   $.verification_LE = 0xF9725782,
    $.verification_BE = 0x3258320A,
    $.hashfn_native   = CRC64GO_update_N<false>,
    $.hashfn_bswap    = CRC64GO_update_N<true>
