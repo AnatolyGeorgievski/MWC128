@@ -84,6 +84,113 @@ uint64_t xoroshiro128p_prev()
     const uint64_t r = s0 + s1;
 	return r;
 }
+uint64_t xoroshiro128pp_next(uint64_t* s)
+{
+	const uint64_t s0 = s[0];
+	uint64_t s1 = s[1];
+	const uint64_t r = rotl(s0 + s1, 17) + s0;
+	s1 ^= s0;
+	s[0] = rotl(s0, 49) ^ s1 ^ (s1 << 21); // a, b
+	s[1] = rotl(s1, 28); // c
+	return r;
+}
+uint64_t xoroshiro128pp_prev(uint64_t* s)
+{
+	uint64_t s0, s1;
+	s1 = rotr(s[1], 28); // c
+	s0 = s[0] ^ s1 ^ (s1 << 21); // a, b
+	s0 = rotr(s0, 49);
+    s1 ^= s0;
+	s[0] = s0;
+	s[1] = s1;
+    const uint64_t r = rotl(s0 + s1, 17) + s0;
+	return r;
+}
+// обратная операция для x ^= x<<17
+uint64_t shift17_rev(uint64_t x) {
+	x ^= x<<17;
+	x ^= x<<17;
+	x ^= x<<17;
+	return x;
+}
+uint64_t xoshiro256ss_next(uint64_t* s) {
+	const uint64_t result = rotl(s[1] * 5, 7) * 9;
+	const uint64_t t = s[1] << 17;
+
+	s[2] ^= s[0];
+	s[3] ^= s[1];
+	s[1] ^= s[2];
+	s[0] ^= s[3];
+
+	s[2] ^= t;
+
+	s[3] = rotl(s[3], 45);
+
+	return result;
+}
+uint64_t xoshiro256p_next(uint64_t* s) {
+	const uint64_t result = s[0] + s[3];
+
+	const uint64_t t = s[1] << 17;
+
+	s[2] ^= s[0];
+	s[3] ^= s[1];
+	s[1] ^= s[2];
+	s[0] ^= s[3];
+
+	s[2] ^= t;
+
+	s[3] = rotl(s[3], 45);
+
+	return result;
+}
+uint64_t xoshiro256pp_next(uint64_t* s) {
+	const uint64_t result = rotl(s[0] + s[3], 23) + s[0];
+
+	const uint64_t t = s[1] << 17;
+
+	s[2] ^= s[0];
+	s[3] ^= s[1];
+	s[1] ^= s[2];
+	s[0] ^= s[3];
+
+	s[2] ^= t;
+
+	s[3] = rotl(s[3], 45);
+
+	return result;
+}
+uint64_t xoshiro256ss_prev(uint64_t* s) {
+	const uint64_t t = s[1];
+	s[3] = rotr(s[3], 45);
+	s[0] ^= s[3];
+	s[1]  = shift17_rev(s[1] ^ s[2]);
+	s[2]  = t ^ s[0] ^ s[1];
+	s[3] ^= s[1];
+	const uint64_t result = rotl(s[1] * 5, 7) * 9;
+	return result;
+}
+uint64_t xoshiro256p_prev(uint64_t* s) {
+	const uint64_t t = s[1];
+	s[3] = rotr(s[3], 45);
+	s[0] ^= s[3];
+	s[1]  = shift17_rev(s[1] ^ s[2]);
+	s[2]  = t ^ s[0] ^ s[1];
+	s[3] ^= s[1];
+	const uint64_t result = s[0] + s[3];
+	return result;
+}
+uint64_t xoshiro256pp_prev(uint64_t* s) {
+	const uint64_t t = s[1];
+	s[3] = rotr(s[3], 45);
+	s[0] ^= s[3];
+	s[1]  = shift17_rev(s[1] ^ s[2]);
+	s[2]  = t ^ s[0] ^ s[1];
+	s[3] ^= s[1];
+	const uint64_t result = rotl(s[0] + s[3], 23) + s[0];
+	return result;
+}
+#ifdef TEST_REV// тестирование
 int main (){
     int const nr = 8;
     int i;
@@ -96,6 +203,16 @@ int main (){
         uint64_t x = xoroshiro128p_prev();
         printf ("%016llx\n", x);
     }
+	uint64_t s2[2] = {1,-1};
+    printf("xoroshiro128pp\n");
+    for (i = 0; i< nr; i++){
+        uint64_t x = xoroshiro128pp_next(s2);
+        printf ("%016llx\n", x);
+    }
+    for (; i-->0;){
+        uint64_t x = xoroshiro128pp_prev(s2);
+        printf ("%016llx\n", x);
+    }
     printf("xoroshiro64*\n");
     uint32_t st[2] = {1,-1};
     for (i = 0; i< nr; i++){
@@ -106,5 +223,31 @@ int main (){
         uint64_t x = xoroshiro64s_prev(st);
         printf ("%016llx\n", x);
     }
+    printf("xoshiro256ss\n");
+	uint64_t s4[4] = {1,-1, 1,-1};
+    for (i = 0; i< nr; i++){
+        uint64_t x = xoshiro256ss_next(s4);
+    }
+    for (; i-->0;){
+        uint64_t x = xoshiro256ss_prev(s4);
+    }
+	if (s4[0] ==1 && s4[1]==-1 && s4[2]==1 && s4[3]==-1) printf("..ok\n");
+    printf("xoshiro256p\n");
+    for (i = 0; i< nr; i++){
+        uint64_t x = xoshiro256p_next(s4);
+    }
+    for (; i-->0;){
+        uint64_t x = xoshiro256p_prev(s4);
+    }
+	if (s4[0] ==1 && s4[1]==-1 && s4[2]==1 && s4[3]==-1) printf("..ok\n");
+    printf("xoshiro256pp\n");
+    for (i = 0; i< 255; i++){
+        uint64_t x = xoshiro256pp_next(s4);
+    }
+    for (; i-->0;){
+        uint64_t x = xoshiro256pp_prev(s4);
+    }
+	if (s4[0] ==1 && s4[1]==-1 && s4[2]==1 && s4[3]==-1) printf("..ok\n");
     return 0;
 }
+#endif

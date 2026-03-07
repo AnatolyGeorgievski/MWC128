@@ -31,6 +31,32 @@ uint64_t xorshiftA3(uint64_t x, int a, int b, int c) {
 	x ^= x >> a; x ^= x << b; x ^= x >> c;
 	return x;
 }
+uint64_t xorshift128p_next(uint64_t *s) {
+	uint64_t s1 = s[0];
+	const uint64_t s0 = s[1];
+	const uint64_t result = s0 + s1;
+	s[0] = s0;
+	s1 ^= s1 << 23; // a
+	s[1] = s1 ^ s0 ^ (s1 >> 18) ^ (s0 >> 5); // b, c
+	return result;
+}
+uint64_t xorshiftr128p_next(uint64_t *s) {
+	uint64_t x = s[0];
+	uint64_t y = s[1];
+	x ^= x << 23;
+	x ^= x >> 17;
+	x ^= y;
+	s[0] = y;
+	s[1] = x + y;
+	return x;
+}
+uint64_t xorshift64(uint64_t *s) {
+	uint64_t x = s[0];
+	x ^= x << 7;
+	x ^= x >> 9;
+	return s[0] = x;
+}
+
 static uint64_t bit_reverse(uint64_t x) {
 	x = ((x >> 1) & 0x5555555555555555ULL) | ((x & 0x5555555555555555ULL) << 1);
     x = ((x >> 2) & 0x3333333333333333ULL) | ((x & 0x3333333333333333ULL) << 2);
