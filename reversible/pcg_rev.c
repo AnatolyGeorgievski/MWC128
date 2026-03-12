@@ -97,9 +97,10 @@ uint64_t PCG128_prev(uint64_t *s){
 // метод пропуска шагов
 uint64_t PCG128_skip(uint64_t *s, int n){
 }
-uint64_t PCG128_jump(uint64_t *s, uint128_t jump){
+void PCG128_jump(uint64_t *s, uint128_t jump){
     uint128_t x = *(uint128_t*)s;
-//    x = jump*x + (jump-1)*(GR*M1_INV);
+    x = jump*x + (jump-1)*GR/(M_PCG - 1);//  -- исправить
+    *(uint128_t*)s = x 
 }
 
 
