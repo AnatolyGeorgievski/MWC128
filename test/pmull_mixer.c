@@ -86,8 +86,31 @@ static uint64_t p_inverse64(uint64_t a){
     }
     return 0;
 }
+#if 0
+void m_transpose_8x8_avx2(uint8_t dst[64], const uint8_t src[64])
+{
+    __m256i r0 = _mm256_loadu_si256((const __m256i*)(src +  0));
+    __m256i r1 = _mm256_loadu_si256((const __m256i*)(src + 32));
 
+    __m256i t0, t1, t2, t3, t4, t5, t6, t7;
 
+    t0 = _mm256_unpacklo_epi8(r0, r1);
+    t1 = _mm256_unpackhi_epi8(r0, r1);
+    t2 = _mm256_unpacklo_epi16(t0, t1);
+    t3 = _mm256_unpackhi_epi16(t0, t1);
+    t4 = _mm256_unpacklo_epi32(t2, t3);
+    t5 = _mm256_unpackhi_epi32(t2, t3);
+
+    t6 = _mm256_permute2x128_si256(t4, t5, 0x20);
+    t7 = _mm256_permute2x128_si256(t4, t5, 0x31);
+
+    t0 = _mm256_unpacklo_epi64(t6, t7);
+    t1 = _mm256_unpackhi_epi64(t6, t7);
+
+    _mm256_storeu_si256((__m256i*)(dst +  0), t0);
+    _mm256_storeu_si256((__m256i*)(dst + 32), t1);
+}
+#endif
 /*! Умножение полиномов, можно предложить реализацию через PMULL и CLMUL - умножение без переносов 
     с редуцированием по полиному $x^n+1$
  */
