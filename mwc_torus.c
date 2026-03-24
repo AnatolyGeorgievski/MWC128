@@ -6,6 +6,7 @@
 
 
 #include <GL/glut.h>
+#include <GLES/gl.h>
 #include <math.h>
 #include <stdio.h>
 
@@ -34,13 +35,23 @@ void init_trajectory() {
         z[i] = r * sinf(phi);
     }
 }
+// angle of rotation for the camera direction
+float angle=0.0;
+// actual vector representing the camera's direction
+float lx=0.0f,lz=-1.0f;
+// XZ position of the camera
+float px=0.0f,pz=8.0f;
 
 void display() {
     glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
     glLoadIdentity();
 
     // Камера (примерный вид как в matplotlib)
-    gluLookAt(0, -8, 5,   0,0,0,   0,0,1);
+    // gluLookAt(0, -8, 5,   0,0,0,   0,0,1);
+	// Set the camera
+	gluLookAt(	px, 1.1f, pz,
+			px+lx, 1.0f,  pz+lz,
+			0.0f, 1.0f,  0.0f);
 
     glRotatef(30, 1,0,0);   // небольшой наклон
     glRotatef(glutGet(GLUT_ELAPSED_TIME)*0.02f, 0,1,0);  // вращение
@@ -81,23 +92,95 @@ void timer(int value) {
     glutPostRedisplay();
     glutTimerFunc(16, timer, 0);  // ~60 fps
 }
+void processNormalKeys(unsigned char key, int x, int y) {
+	if (key == 27) exit(0);
+}
+void processSpecialKeys(int key, int x, int y) {
+	int mod;
+    float fraction = 0.1;
+	switch(key) {
+    case GLUT_KEY_F1 :
+        mod = glutGetModifiers();
+        if (mod == (GLUT_ACTIVE_CTRL|GLUT_ACTIVE_ALT)) {
+        }
+        break;
+    case GLUT_KEY_F2 :
+        break;
+    case GLUT_KEY_F3 :
+        break;
+    case GLUT_KEY_LEFT :
+        angle -= 0.01f;
+        lx = sin(angle);
+        lz = -cos(angle);
+        break;
+    case GLUT_KEY_RIGHT :
+        angle += 0.01f;
+        lx = sin(angle);
+        lz =-cos(angle);
+        break;
+    case GLUT_KEY_UP :
+        px += lx * fraction;
+        pz += lz * fraction;
+        break;
+    case GLUT_KEY_DOWN :
+        px -= lx * fraction;
+        pz -= lz * fraction;
+        break;
+    }
+}
+float deltaAngle = 0.0f;
+int xOrigin = -1;
+void mouseButton(int button, int state, int x, int y) {
+
+	// only start motion if the left button is pressed
+	if (button == GLUT_LEFT_BUTTON) {
+
+		// when the button is released
+		if (state == GLUT_UP) {
+			angle += deltaAngle;
+			xOrigin = -1;
+		}
+		else  {// state = GLUT_DOWN
+			xOrigin = x;
+		}
+	}
+}
+void mouseMove(int x, int y) {
+	if (xOrigin >= 0) {
+		deltaAngle = (x - xOrigin) * 0.001f;
+		lx = sin(angle + deltaAngle);
+		lz = -cos(angle + deltaAngle);
+	}
+}
 
 int main(int argc, char** argv) {
     glutInit(&argc, argv);
     glutInitDisplayMode(GLUT_DOUBLE | GLUT_RGB | GLUT_DEPTH);
-    glutInitWindowSize(900, 700);
+    glutInitWindowSize(960, 762);
     glutCreateWindow("MWC-Torus");
+
+
+    glutDisplayFunc(display);
+    glutReshapeFunc(reshape);
+	//glutIdleFunc(renderScene);
+
+	// Управление с клавиатуры
+	glutKeyboardFunc(processNormalKeys);
+	glutSpecialFunc(processSpecialKeys);
+
+	// Управление мышкой
+	glutMouseFunc(mouseButton);
+	glutMotionFunc(mouseMove);
+    glutTimerFunc(0, timer, 0);
+
 
     glEnable(GL_DEPTH_TEST);
     glClearColor(0.05f, 0.05f, 0.08f, 1.0f);
 
     init_trajectory();
 
-    glutDisplayFunc(display);
-    glutReshapeFunc(reshape);
-    glutTimerFunc(0, timer, 0);
-
-    printf("Используй мышь + клавиши для управления окном.\n");
+    printf("Траектории на торе [0,1]^2\n");
+    printf("Управление: мышь + стрелки + ESC\n");
     glutMainLoop();
 
     free(x); free(y); free(z);
