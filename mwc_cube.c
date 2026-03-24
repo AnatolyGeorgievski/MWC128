@@ -40,7 +40,7 @@ uint32_t lcg_parkmiller() {
    uint64_t product = s * (uint64_t)48271u;
    uint32_t x = (product & 0x7fffffff) + (product >> 31);
    s = (x & 0x7fffffff) + (x >> 31);
-   return s;
+   return s>>15;
 }
 // Генератор Лемера использует простой модуль 2^{32}-5:
 uint32_t lcg_rand() {
@@ -51,18 +51,28 @@ uint32_t lcg_rand() {
    uint32_t x = (uint32_t)product + 5 * (uint32_t)(product >> 32);
    return s = x - 4;
 }
+#define ROTR(x,r) ((x)<<(32-r)^(x)>>(r))
 static uint32_t mwc32x() {
-    const  uint32_t A = 0xFF9B;//0xFF00;
+    const  uint32_t A =  0xFF9B;//0xFF00;//0xFEA0;//0xFF75;//
     static uint32_t x = 1;
 	x = A*(uint16_t)(x) + (x>>16);
-    return x;
+    return x;//^x>>16;
 }
+#define MWC32_MAX (0x1.FEp-33)
+static uint32_t mwc32x2() {
+    const  uint32_t A = 0xFF9B;//0xFF00;//0xFEA0;//0xFF75;//
+    static uint32_t x = (A<<15)-1;
+	x = A*(uint16_t)(x) + (x>>16);
+    return x;//^x>>16;
+}
+
 // ==================== ПАРАМЕТРЫ ====================
-int   NUM_POINTS = 10000;        // количество точек
-float point_size = 1.2f;         // размер точек
+#define   NUM_POINTS  15000        // количество точек
+float point_size = .75f;         // размер точек
 
 // Массивы точек
 float *px = NULL, *py = NULL, *pz = NULL;
+float *qx = NULL, *qy = NULL, *qz = NULL;
 
 // ==================== КАМЕРА ====================
 float angle = 0.0f;
@@ -139,7 +149,8 @@ void draw_cube(void) {
 float angle_y = 0.0f;      // угол вращения вокруг Y (главное вращение)
 float angle_x = 25.0f;     // небольшой наклон (можно менять мышкой)
 float cam_dist = 3.2f;     // расстояние камеры от центра
-
+int   auto_rotate = 1;     // 1 = включено, 0 = выключено
+int   use_perspective = 1;
 // ==================== РИСОВАНИЕ ТРЁХ ОСЕЙ ====================
 void draw_axes(void) {
     glLineWidth(3.0f);
@@ -178,31 +189,36 @@ void draw_axes(void) {
 // ==================== ИНИЦИАЛИЗАЦИЯ ТОЧЕК ====================
 void init_points(void) {
     if (px) { free(px); free(py); free(pz); }
+    if (qx) { free(qx); free(qy); free(qz); 
+        qx = qy = qz = NULL;
+    }
 
     px = (float*)malloc(NUM_POINTS * sizeof(float));
     py = (float*)malloc(NUM_POINTS * sizeof(float));
     pz = (float*)malloc(NUM_POINTS * sizeof(float));
 
-    srand((unsigned int)time(NULL));
+    qx = (float*)malloc(NUM_POINTS * sizeof(float));
+    qy = (float*)malloc(NUM_POINTS * sizeof(float));
+    qz = (float*)malloc(NUM_POINTS * sizeof(float));
+
 
     for (int i = 0; i < NUM_POINTS; i++) {
-#if 0
-        px[i] = (mwc32x()&0xFF)*0x1.fep-9;
-        py[i] = (mwc32x()&0xFF)*0x1.fep-9;
-        pz[i] = (mwc32x()&0xFF)*0x1.fep-9;
+#if 1
+        px[i] = (mwc32x())*MWC32_MAX;
+        py[i] = (mwc32x())*MWC32_MAX;
+        pz[i] = (mwc32x())*MWC32_MAX;
 
-#elif 0
-        px[i] = mwc32x()*0x1.fep-33;
-        py[i] = mwc32x()*0x1.fep-33;
-        pz[i] = mwc32x()*0x1.fep-33;
-#elif 0
+        qx[i] = (mwc32x2())*MWC32_MAX;
+        qy[i] = (mwc32x2())*MWC32_MAX;
+        qz[i] = (mwc32x2())*MWC32_MAX;
+#elif 1
         px[i] = (float)newlib_rand() / RAND_MAX;   // [0, 1]
         py[i] = (float)newlib_rand() / RAND_MAX;
         pz[i] = (float)newlib_rand() / RAND_MAX;
-#elif 0
-        px[i] = (float)lcg_parkmiller() *0x1p-31;   // [0, 1]
-        py[i] = (float)lcg_parkmiller() *0x1p-31;
-        pz[i] = (float)lcg_parkmiller() *0x1p-31;
+#elif 1
+        px[i] = (float)lcg_parkmiller() *0x1p-16;   // [0, 1]
+        py[i] = (float)lcg_parkmiller() *0x1p-16;
+        pz[i] = (float)lcg_parkmiller() *0x1p-16;
 #elif 0
         px[i] = (float)lcg_rand() *0x1p-32;   // [0, 1]
         py[i] = (float)lcg_rand() *0x1p-32;
@@ -214,17 +230,61 @@ void init_points(void) {
 #endif
     }
 }
-
+uint32_t n_points = NUM_POINTS/4;
 void display(void) {
     glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
+//    glMatrixMode(GL_PROJECTION);
     glLoadIdentity();
 
-    gluLookAt(cam_x, 1.3f, cam_z,
-              cam_x + lx, 1.0f, cam_z + lz,
+// === Авто-вращение (плавное включение/выключение) ===
+    static float last_elapsed = 0.0f;
+    float curr_elapsed = (float)glutGet(GLUT_ELAPSED_TIME);
+    if (auto_rotate) {
+        angle_y += (curr_elapsed - last_elapsed) * 0.015f;
+    }
+    last_elapsed = curr_elapsed;
+// === Орбитальная камера вокруг центра куба ===
+    float cx = 0.5f, cy = 0.5f, cz = 0.5f;
+    float theta = angle_y * PI / 180.0f;
+    float phi   = angle_x * PI / 180.0f;
+
+    float camx = cx + cam_dist * cosf(phi) * sinf(theta);
+    float camy = cy + cam_dist * sinf(phi);
+    float camz = cz + cam_dist * cosf(phi) * cosf(theta);
+
+    gluLookAt(camx, camy, camz,
+              cx, cy, cz,
               0.0f, 1.0f, 0.0f);
 
-    glRotatef(25.0f, 1.0f, 0.0f, 0.0f);                    // лёгкий наклон
-    glRotatef(glutGet(GLUT_ELAPSED_TIME) * 0.015f, 0.0f, 1.0f, 0.0f); // авто-вращение
+// === ПРОЕКЦИЯ ===
+    glMatrixMode(GL_PROJECTION);
+    glLoadIdentity();
+    int w = glutGet(GLUT_WINDOW_WIDTH);
+    int h = glutGet(GLUT_WINDOW_HEIGHT);
+    if (h == 0) h = 1;
+
+    float aspect = (float)w / (float)h;
+
+    if (use_perspective) {
+        gluPerspective(30.0, aspect, 0.1, 100.0);
+    } else {
+        // Пропорциональная ортогональная проекция
+        float ortho_size = cam_dist * 0.25f;   // подберите коэффициент под ваш вкус (0.6–0.9)
+
+        if (aspect >= 1.0f) {
+            // широкое окно — растягиваем по X
+            glOrtho(-ortho_size * aspect, ortho_size * aspect,
+                    -ortho_size,          ortho_size,
+                    -100.0, 100.0);
+        } else {
+            // высокое окно — растягиваем по Y
+            glOrtho(-ortho_size,          ortho_size,
+                    -ortho_size / aspect, ortho_size / aspect,
+                    -100.0, 100.0);
+        }
+    }
+
+    glMatrixMode(GL_MODELVIEW);
 
     draw_grid(0.2f);      // сетка с шагом 0.2
     //draw_cube();          // границы куба
@@ -234,12 +294,21 @@ void display(void) {
     glPointSize(point_size);
     glColor3f(1.0f, 0.45f, 0.15f);     // ярко-оранжевый
     glEnable(GL_POINT_SMOOTH);
-
+    n_points += 8;//
+    if (n_points> NUM_POINTS) n_points=0;
     glBegin(GL_POINTS);
-    for (int i = 0; i < NUM_POINTS; i++) {
+    for (int i = 0; i < n_points; i++) {
         glVertex3f(px[i], py[i], pz[i]);
     }
     glEnd();
+    if (qx){
+        glColor3f(0.15f, 1.0f, 0.45f);
+        glBegin(GL_POINTS);
+        for (int i = 0; i < n_points; i++) {
+            glVertex3f(qx[i], qy[i], qz[i]);
+        }
+        glEnd();
+    }
 
     glDisable(GL_POINT_SMOOTH);
 
@@ -260,40 +329,57 @@ void timer(int value) {
 }
 void processNormalKeys(unsigned char key, int x, int y) {
     if (key == 27) exit(0);
+    if (key == ' ')
+        auto_rotate = !auto_rotate;
+    if (key == 'p')
+        use_perspective = !use_perspective;
 }
 void processSpecialKeys(int key, int x, int y) {
-    float fraction = 0.15f;
     switch (key) {
-        case GLUT_KEY_LEFT:  angle -= 0.03f; break;
-        case GLUT_KEY_RIGHT: angle += 0.03f; break;
-        case GLUT_KEY_UP:    cam_x += lx * fraction; cam_z += lz * fraction; break;
-        case GLUT_KEY_DOWN:  cam_x -= lx * fraction; cam_z -= lz * fraction; break;
+        case GLUT_KEY_LEFT:  angle_y -= 5.0f; break;   // вращение влево
+        case GLUT_KEY_RIGHT: angle_y += 5.0f; break;   // вращение вправо
+        case GLUT_KEY_UP:    
+            cam_dist -= 0.2f;        // перемещение по Z (приближение)
+            if (cam_dist < 0.5f) cam_dist = 0.5f;
+            break;
+        case GLUT_KEY_DOWN:  
+            cam_dist += 0.2f;        // перемещение по Z (удаление)
+            break;
     }
-    lx = sinf(angle);
-    lz =-cosf(angle);
 }
-
-float deltaAngle = 0.0f;
-int xOrigin = -1;
+// Мышь — орбитальное управление (гораздо удобнее старого)
+int last_mouse_x = -1;
+int last_mouse_y = -1;
 
 void mouseButton(int button, int state, int x, int y) {
     if (button == GLUT_LEFT_BUTTON) {
-        if (state == GLUT_UP) {
-            angle += deltaAngle;
-            xOrigin = -1;
+        if (state == GLUT_DOWN) {
+            last_mouse_x = x;
+            last_mouse_y = y;
         } else {
-            xOrigin = x;
+            last_mouse_x = -1;
+            last_mouse_y = -1;
         }
     }
 }
 
 void mouseMove(int x, int y) {
-    if (xOrigin >= 0) {
-        deltaAngle = (x - xOrigin) * 0.002f;
-        lx = sinf(angle + deltaAngle);
-        lz =-cosf(angle + deltaAngle);
+    if (last_mouse_x != -1) {
+        int dx = x - last_mouse_x;
+        int dy = y - last_mouse_y;
+
+        angle_y += (float)dx * 0.3f;      // yaw
+        angle_x -= (float)dy * 0.3f;      // pitch (естественное направление)
+
+        // защита от переворота камеры
+        if (angle_x > 85.0f)  angle_x = 85.0f;
+        if (angle_x < -85.0f) angle_x = -85.0f;
+
+        last_mouse_x = x;
+        last_mouse_y = y;
     }
 }
+
 int main(int argc, char** argv) {
     glutInit(&argc, argv);
     glutInitDisplayMode(GLUT_DOUBLE | GLUT_RGB | GLUT_DEPTH);
@@ -318,5 +404,6 @@ int main(int argc, char** argv) {
     glutMainLoop();
 
     free(px); free(py); free(pz);
+    free(qx); free(qy); free(qz);
     return 0;
 }
