@@ -5,10 +5,10 @@
 */
 
 #include <GL/glut.h>
-#include <GLES/gl.h>
+//#include <GLES/gl.h>
 #include <math.h>
+#include <stdint.h>
 #include <stdio.h>
-#include <stdlib.h>
 #include <time.h>
 
 #define PI 3.14159265358979323846
@@ -21,7 +21,36 @@ static uint32_t randu(){
     v = (65539u * v) & 0x7FFFFFFFu;
     return v;
 }
-
+#define RANDC_MAX 32767 
+static uint32_t randc(void){
+    static unsigned long int next = 1;
+    next = next * 1103515245 + 12345;
+    return (unsigned int)(next/65536) % (RAND_MAX + 1);
+}
+uint32_t newlib_rand () {
+  static uint64_t x = 1;
+  /* This multiplier was obtained from Knuth, D.E., "The Art of
+     Computer Programming," Vol 2, Seminumerical Algorithms, Third
+     Edition, Addison-Wesley, 1998, p. 106 (line 26) & p. 108 */
+  x = x * 6364136223846793005LL + 1;
+  return (uint32_t)(x >> 32) & RAND_MAX;
+}
+uint32_t lcg_parkmiller() {
+    static uint32_t s = 1;
+   uint64_t product = s * (uint64_t)48271u;
+   uint32_t x = (product & 0x7fffffff) + (product >> 31);
+   s = (x & 0x7fffffff) + (x >> 31);
+   return s;
+}
+// Генератор Лемера использует простой модуль 2^{32}-5:
+uint32_t lcg_rand() {
+    static uint32_t s = 1;
+   uint64_t product = (uint64_t)s * 279470273u;
+   product = (product & 0xffffffff) + 5 * (uint32_t) (product >> 32);
+   product += 4;
+   uint32_t x = (uint32_t)product + 5 * (uint32_t)(product >> 32);
+   return s = x - 4;
+}
 static uint32_t mwc32x() {
     const  uint32_t A = 0xFF9B;//0xFF00;
     static uint32_t x = 1;
@@ -158,9 +187,26 @@ void init_points(void) {
 
     for (int i = 0; i < NUM_POINTS; i++) {
 #if 0
+        px[i] = (mwc32x()&0xFF)*0x1.fep-9;
+        py[i] = (mwc32x()&0xFF)*0x1.fep-9;
+        pz[i] = (mwc32x()&0xFF)*0x1.fep-9;
+
+#elif 0
         px[i] = mwc32x()*0x1.fep-33;
         py[i] = mwc32x()*0x1.fep-33;
         pz[i] = mwc32x()*0x1.fep-33;
+#elif 0
+        px[i] = (float)newlib_rand() / RAND_MAX;   // [0, 1]
+        py[i] = (float)newlib_rand() / RAND_MAX;
+        pz[i] = (float)newlib_rand() / RAND_MAX;
+#elif 0
+        px[i] = (float)lcg_parkmiller() *0x1p-31;   // [0, 1]
+        py[i] = (float)lcg_parkmiller() *0x1p-31;
+        pz[i] = (float)lcg_parkmiller() *0x1p-31;
+#elif 0
+        px[i] = (float)lcg_rand() *0x1p-32;   // [0, 1]
+        py[i] = (float)lcg_rand() *0x1p-32;
+        pz[i] = (float)lcg_rand() *0x1p-32;
 #else
         px[i] = (float)randu() / RANDU_MAX;   // [0, 1]
         py[i] = (float)randu() / RANDU_MAX;
@@ -173,7 +219,7 @@ void display(void) {
     glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
     glLoadIdentity();
 
-    gluLookAt(cam_x, 1.2f, cam_z,
+    gluLookAt(cam_x, 1.3f, cam_z,
               cam_x + lx, 1.0f, cam_z + lz,
               0.0f, 1.0f, 0.0f);
 
@@ -245,7 +291,7 @@ void mouseMove(int x, int y) {
     if (xOrigin >= 0) {
         deltaAngle = (x - xOrigin) * 0.002f;
         lx = sinf(angle + deltaAngle);
-        lz = -cosf(angle + deltaAngle);
+        lz =-cosf(angle + deltaAngle);
     }
 }
 int main(int argc, char** argv) {

@@ -6,8 +6,9 @@
 
 
 #include <GL/glut.h>
-#include <GLES/gl.h>
+//#include <GLES/gl.h>
 #include <math.h>
+#include <stdint.h>
 #include <stdio.h>
 
 #define PI 3.14159265358979323846
