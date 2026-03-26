@@ -1229,6 +1229,11 @@ a_1 & a_2 & \cdots & a_{k-1} & a_k \\
 
 Предпосылки. Не все формы разложения матриц работают в конечных полях $\mathbb{Z}_q$ и в GF(2). Всегда существует разложение бинарных матриц в *Rational Canonical Form* (RCF). Разложение RCF тесно связано с факторизацией харакетирстического многочлена матрицы на неприводимые многочлены. Неприводимому многочлену можно сопоставить матрицу-компаньон в форме Фробениуса. 
 
+[[2510.16225](https://arxiv.org/pdf/2510.16225)] Universality of rational canonical form for random matrices over a finite field
+<!--
+[[2512.24658](https://arxiv.org/pdf/2512.24658)] Taking Advantage of Rational Canonical Form for Faster Ring-LWE based Encrypted Controller with Recursive Multiplication
+ -->
+
 In linear algebra, the Frobenius companion matrix of the monic polynomial
 ```math
 p(x)=c_{0}+c_{1}x+\cdots +c_{n-1}x^{n-1}+x^{n}
