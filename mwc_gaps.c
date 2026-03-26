@@ -153,6 +153,28 @@ uint16_t mwc16_ones(uint16_t A, uint16_t seed) {
 	printf(" =%d\n", i);
 	return i;
 }
+
+uint32_t lcg_parkmiller(uint32_t *s, uint32_t A) {
+   uint64_t product = *s * (uint64_t)48271u;
+   uint32_t x = (product & 0x7fffffff) + (product >> 31);
+   *s = (x & 0x7fffffff) + (x >> 31);
+   return *s;
+}
+uint32_t lcg_rand(uint32_t *s, uint32_t A) {
+   uint64_t product = (uint64_t)*s * 279470273u;
+   product = (product & 0xffffffff) + 5 * (uint32_t) (product >> 32);
+   product += 4;
+   uint32_t x = (uint32_t)product + 5 * (uint32_t)(product >> 32);
+   return *s = x - 4;
+}
+uint32_t newlib_rand () {
+  static uint64_t x = 1;
+  /* This multiplier was obtained from Knuth, D.E., "The Art of
+     Computer Programming," Vol 2, Seminumerical Algorithms, Third
+     Edition, Addison-Wesley, 1998, p. 106 (line 26) & p. 108 */
+  x = x * 6364136223846793005LL + 1;
+  return x>>32;
+}
 static inline uint32_t _scrambler(uint32_t x) {return x;}
 // static inline uint32_t _scrambler(uint32_t x) {return __builtin_bswap32(x);}
 // static inline uint32_t _scrambler(uint32_t x) {return x^rotl32(x,16);}
@@ -178,14 +200,64 @@ uint32_t mwc32_ones(uint32_t A, uint32_t pattern) {
 	printf(" =%x\n", i);
 	return i;
 }
-uint32_t xoro_ones(uint32_t* s, uint32_t pattern) {
+uint32_t lcg32_ones(uint32_t A, uint32_t pattern) {
+	uint32_t s = 1;// (A<<15)-1u;// -- чтобы попасть на вторую орбиту 2^{-1}
 	const uint32_t B = 0x7FFFFFFF;
+	lcg_parkmiller(&s, A);
+	uint32_t i, prev = 0, r;
+	for (i=1; i!= B; i++){
+		lcg_parkmiller(&s, A);
+		//if (r==pattern) break;
+        uint32_t r = (s);
+		if (rotr32(r, __builtin_ctz(r))==pattern && i-prev>1) {
+			printf(" %2d", i - prev,__builtin_ctz(r));
+            prev = i;
+		}
+	}
+	printf(" =%x\n", i);
+	return i;
+}
+uint32_t lcg_rand_ones(uint32_t A, uint32_t pattern) {
+	uint32_t s = 1;// (A<<15)-1u;// -- чтобы попасть на вторую орбиту 2^{-1}
+	const uint32_t B = 0x7FFFFFFF;
+	lcg_rand(&s, A);
+	uint32_t i, prev = 0, r;
+	for (i=1; i!= B; i++){
+		lcg_rand(&s, A);
+		//if (r==pattern) break;
+        uint32_t r = (s);
+		if (rotr32(r, __builtin_ctz(r))==pattern && i-prev>1) {
+			printf(" %2d", i - prev,__builtin_ctz(r));
+            prev = i;
+		}
+	}
+	printf(" =%x\n", i);
+	return i;
+}
+uint32_t newlib_ones(uint32_t A, uint32_t pattern) {
+	uint32_t s = 1;// (A<<15)-1u;// -- чтобы попасть на вторую орбиту 2^{-1}
+	const uint32_t B = 0xFFFFFFFF;
+	uint32_t i, prev = 0, r;
+	for (i=1; i!= B; i++){
+		s = newlib_rand();
+		//if (r==pattern) break;
+        uint32_t r = (s);
+		if (rotr32(r, __builtin_ctz(r))==pattern && i-prev>1) {
+			printf(" %2d", i - prev,__builtin_ctz(r));
+            prev = i;
+		}
+	}
+	printf(" =%x\n", i);
+	return i;
+}
+uint32_t xoro_ones(uint32_t* s, uint32_t pattern) {
+	const uint32_t B = 0xFFFFFFFF;
 	xoroshiro64s_next(s);
 	uint32_t i, prev = 0, r;
 	for (i=1; i!= B; i++){
 		xoroshiro64s_next(s);
 		//if (r==pattern) break;
-        uint32_t r = _scrambler(s[0]);
+        uint32_t r = _scrambler(s[1]);
 		if (rotr32(r, __builtin_ctz(r))==pattern && i-prev>1) {
 			printf(" %2d", i - prev,__builtin_ctz(r));
             prev = i;
@@ -280,6 +352,51 @@ int main (){
 			r = xoro_ones( s, (1u<<4) |1);
 			r = xoro_ones( s, (1u<<8) |1);
 			r = xoro_ones( s, (1u<<16) |1);
+    }
+    if (1) {
+		printf("Newlib rand\n");
+		uint32_t s = 1;
+
+        uint32_t r;
+			r = newlib_ones( s, 0b01);
+			r = newlib_ones( s, (1<<2) -1);
+			r = newlib_ones( s, (1<<4) -1);
+			r = newlib_ones( s, (1<<8) -1);
+			r = newlib_ones( s, (1<<16) -1);
+			r = newlib_ones( s, (1u<<2) |1);
+			r = newlib_ones( s, (1u<<4) |1);
+			r = newlib_ones( s, (1u<<8) |1);
+			r = newlib_ones( s, (1u<<16) |1);
+    }
+    if (1) {
+		printf("LCG 32 Lehmer\n");
+		uint32_t s = 1;
+
+        uint32_t r;
+			r = lcg_rand_ones( s, 0b01);
+			r = lcg_rand_ones( s, (1<<2) -1);
+			r = lcg_rand_ones( s, (1<<4) -1);
+			r = lcg_rand_ones( s, (1<<8) -1);
+			r = lcg_rand_ones( s, (1<<16) -1);
+			r = lcg_rand_ones( s, (1u<<2) |1);
+			r = lcg_rand_ones( s, (1u<<4) |1);
+			r = lcg_rand_ones( s, (1u<<8) |1);
+			r = lcg_rand_ones( s, (1u<<16) |1);
+    }
+    if (1) {
+		printf("LCG park-miller\n");
+		uint32_t s = 1;
+
+        uint32_t r;
+			r = lcg32_ones( s, 0b01);
+			r = lcg32_ones( s, (1<<2) -1);
+			r = lcg32_ones( s, (1<<4) -1);
+			r = lcg32_ones( s, (1<<8) -1);
+			r = lcg32_ones( s, (1<<16) -1);
+			r = lcg32_ones( s, (1u<<2) |1);
+			r = lcg32_ones( s, (1u<<4) |1);
+			r = lcg32_ones( s, (1u<<8) |1);
+			r = lcg32_ones( s, (1u<<16) |1);
     }
     if (1) {
     // A=FEA0 i=7f4ffffe (351), P mod 24 =23, A mod 3 =0
